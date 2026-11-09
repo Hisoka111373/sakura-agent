@@ -13,7 +13,7 @@ class NativeLlama {
 
     companion object {
         init {
-            System.loadLibrary("sakura_llm")
+            runCatching { System.loadLibrary("sakura_llm") }
         }
     }
 }

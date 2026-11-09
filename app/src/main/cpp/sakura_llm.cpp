@@ -20,9 +20,18 @@ constexpr int kBatchTokens = 256;
 constexpr int kMaxOutputTokens = 256;
 
 void unloadModel() {
-    if (g_sampler) { llama_sampler_free(g_sampler); g_sampler = nullptr; }
-    if (g_context) { llama_free(g_context); g_context = nullptr; }
-    if (g_model) { llama_model_free(g_model); g_model = nullptr; }
+    if (g_sampler) {
+        llama_sampler_free(g_sampler);
+        g_sampler = nullptr;
+    }
+    if (g_context) {
+        llama_free(g_context);
+        g_context = nullptr;
+    }
+    if (g_model) {
+        llama_model_free(g_model);
+        g_model = nullptr;
+    }
 }
 
 std::vector<llama_token> tokenize(const llama_vocab *vocab, const std::string &text) {
@@ -39,9 +48,10 @@ std::vector<llama_token> tokenize(const llama_vocab *vocab, const std::string &t
     return tokens;
 }
 
-bool decodePrompt(const std::vector<llama_token> &tokens) {
+bool decodePrompt(const std::vector<llama_token> &tokens, llama_context *ctx) {
     llama_batch batch = llama_batch_init(kBatchTokens, 0, 1);
     if (!batch.token) return false;
+
     bool ok = true;
     for (size_t offset = 0; offset < tokens.size(); offset += kBatchTokens) {
         const int count = static_cast<int>(std::min<size_t>(kBatchTokens, tokens.size() - offset));
@@ -54,17 +64,22 @@ bool decodePrompt(const std::vector<llama_token> &tokens) {
             batch.seq_id[i][0] = 0;
             batch.logits[i] = index == static_cast<int>(tokens.size()) - 1 ? 1 : 0;
         }
-        if (llama_decode(g_context, batch) != 0) { ok = false; break; }
+        if (llama_decode(ctx, batch) != 0) {
+            ok = false;
+            break;
+        }
     }
     llama_batch_free(batch);
     return ok;
 }
 
-std::string formatChat(const std::string &userPrompt) {
-    const char *templateText = llama_model_chat_template(g_model, nullptr);
+std::string formatChat(const std::string &userPrompt, llama_model *model) {
+    const char *templateText = llama_model_chat_template(model, nullptr);
     if (!templateText) templateText = "";
+
     std::string systemText = "Eres Sakura, una asistente amable y útil. Responde en español, con claridad y honestidad. No afirmes haber realizado acciones que no ejecutaste.";
     llama_chat_message messages[] = {{"system", systemText.c_str()}, {"user", userPrompt.c_str()}};
+
     const int32_t capacity = static_cast<int32_t>(std::min<size_t>(systemText.size() + userPrompt.size() + 4096, 32768));
     std::vector<char> buffer(static_cast<size_t>(capacity));
     int32_t size = llama_chat_apply_template(templateText, messages, 2, true, buffer.data(), capacity);
@@ -76,12 +91,13 @@ std::string formatChat(const std::string &userPrompt) {
     }
     return std::string(buffer.data(), static_cast<size_t>(size));
 }
-}
+}  // namespace
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring modelPath) {
     std::lock_guard<std::mutex> lock(g_mutex);
     unloadModel();
+
     const char *path = env->GetStringUTFChars(modelPath, nullptr);
     if (!path) return env->NewStringUTF("No pude leer la ruta del modelo.");
 
@@ -96,7 +112,7 @@ Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring model
     env->ReleaseStringUTFChars(modelPath, path);
 
     if (!g_model) {
-        return env->NewStringUTF("No pude cargar el GGUF. Comprueba el archivo y la memoria disponible.");
+        return env->NewStringUTF("No pude cargar el GGUF. Comprueba la ruta y los permisos del archivo.");
     }
 
     llama_context_params contextParams = llama_context_default_params();
@@ -117,6 +133,7 @@ Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring model
     llama_sampler_chain_add(g_sampler, llama_sampler_init_top_p(0.9f, 1));
     llama_sampler_chain_add(g_sampler, llama_sampler_init_temp(0.7f));
     llama_sampler_chain_add(g_sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
     return env->NewStringUTF("");
 }
 
@@ -124,7 +141,7 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jstring input) {
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!g_model || !g_context || !g_sampler) {
-        return env->NewStringUTF("Carga primero un modelo local desde Modelos.");
+        return env->NewStringUTF("Carga primero un modelo local desde el selector de modelos.");
     }
 
     const char *raw = env->GetStringUTFChars(input, nullptr);
@@ -135,7 +152,7 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jstring i
 
     if (userText.size() > 6000) userText.resize(6000);
 
-    const std::string prompt = formatChat(userText);
+    const std::string prompt = formatChat(userText, g_model);
     if (prompt.empty()) {
         return env->NewStringUTF("Este modelo no proporcionó una plantilla de chat compatible.");
     }
@@ -148,7 +165,7 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jstring i
         return env->NewStringUTF("El mensaje excede el contexto local disponible.");
     }
 
-    if (!decodePrompt(tokens)) {
+    if (!decodePrompt(tokens, g_context)) {
         return env->NewStringUTF("Falló el procesamiento del mensaje en el modelo.");
     }
 
