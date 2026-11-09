@@ -1,8 +1,15 @@
 package com.sakura.agent
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,17 +27,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,9 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 private val Night = Color(0xFF100D1C)
 private val Panel = Color(0xFF1B172B)
@@ -52,11 +65,7 @@ private val Ink = Color(0xFFF7EFF8)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            SakuraTheme {
-                SakuraScreen()
-            }
-        }
+        setContent { SakuraTheme { SakuraScreen() } }
     }
 }
 
@@ -80,154 +89,166 @@ private data class Message(val text: String, val fromSakura: Boolean)
 
 @Composable
 private fun SakuraScreen() {
+    val context = LocalContext.current
     val messages = remember {
         mutableStateListOf(
-            Message(
-                "¡Hola! Soy Sakura 🌸 Tu compañera de ideas, con energía tranquila y un toque anime. ¿Qué hacemos hoy?",
-                true
-            )
+            Message("¡Hola! Soy Sakura 🌸 Puedo conversar con respuestas básicas y leerlas en voz alta. ¿Qué hacemos hoy?", true)
         )
     }
     var draft by remember { mutableStateOf("") }
+    var voiceStatus by remember { mutableStateOf("") }
+    var speechEngine by remember { mutableStateOf<TextToSpeech?>(null) }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Night
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(18.dp)
-        ) {
+    DisposableEffect(context) {
+        val engine = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                speechEngine?.language = Locale("es", "ES")
+            }
+        }
+        speechEngine = engine
+        onDispose {
+            engine.stop()
+            engine.shutdown()
+            speechEngine = null
+        }
+    }
+
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val recognized = if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        } else null
+        if (!recognized.isNullOrBlank()) {
+            draft = recognized
+            voiceStatus = "Voz reconocida; revisa el texto y pulsa enviar."
+        } else {
+            voiceStatus = "No se reconoció voz. Puedes intentarlo otra vez o escribir."
+        }
+    }
+
+    fun sendMessage() {
+        val text = draft.trim()
+        if (text.isNotEmpty()) {
+            messages.add(Message(text, false))
+            messages.add(Message(reply(text), true))
+            draft = ""
+            voiceStatus = ""
+        }
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = Night) {
+        Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    color = Pink.copy(alpha = 0.18f)
-                ) {
-                    Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = Pink,
-                        modifier = Modifier.padding(13.dp)
-                    )
+                Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = Pink.copy(alpha = 0.18f)) {
+                    Icon(Icons.Default.Favorite, contentDescription = null, tint = Pink, modifier = Modifier.padding(13.dp))
                 }
-
                 Column(modifier = Modifier.padding(start = 12.dp)) {
                     Text("SAKURA AGENT", color = Pink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                    Text("Tu compañera digital · modo seguro", color = Aqua, fontSize = 12.sp)
+                    Text("Compañera digital · prototipo", color = Aqua, fontSize = 12.sp)
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Panel),
-                shape = RoundedCornerShape(18.dp)
-            ) {
+            Spacer(Modifier.height(14.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
                 Text(
-                    "Estoy en modo conversación. No controlo otras aplicaciones ni envío datos a un servidor.",
+                    "Modo actual: respuestas de demostración, sin modelo de IA local. El micrófono usa el reconocedor de voz disponible en Android y podría requerir Internet. No ejecuto órdenes ni controlo otras apps. Tú revisas y envías cada mensaje.",
                     modifier = Modifier.padding(14.dp),
-                    color = Ink.copy(alpha = 0.82f),
+                    color = Ink.copy(alpha = 0.86f),
                     fontSize = 13.sp
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
-
+            Spacer(Modifier.height(12.dp))
             LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 reverseLayout = true
             ) {
                 items(messages.asReversed()) { message ->
-                    MessageBubble(message)
+                    MessageBubble(message = message, onSpeak = {
+                        if (message.fromSakura) speechEngine?.speak(message.text, TextToSpeech.QUEUE_FLUSH, null, "sakura_reply")
+                    })
                 }
             }
 
+            if (voiceStatus.isNotBlank()) {
+                Text(voiceStatus, modifier = Modifier.padding(vertical = 6.dp), color = Aqua, fontSize = 12.sp)
+            }
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Panel, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(onClick = {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es")
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Habla con Sakura")
+                    }
+                    try {
+                        speechLauncher.launch(intent)
+                    } catch (_: ActivityNotFoundException) {
+                        voiceStatus = "No hay un servicio de reconocimiento de voz instalado."
+                    }
+                }) {
+                    Icon(Icons.Default.Mic, contentDescription = "Dictar mensaje", tint = Aqua)
+                }
+
                 BasicTextField(
                     value = draft,
                     onValueChange = { draft = it },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
                     decorationBox = { inner ->
-                        if (draft.isEmpty()) {
-                            Text("Escribe a Sakura…", color = Ink.copy(alpha = 0.45f))
-                        }
+                        if (draft.isEmpty()) Text("Escribe o dicta a Sakura…", color = Ink.copy(alpha = 0.45f))
                         inner()
                     }
                 )
 
-                Button(
-                    onClick = {
-                        val text = draft.trim()
-                        if (text.isNotEmpty()) {
-                            messages.add(Message(text, false))
-                            messages.add(Message(reply(text), true))
-                            draft = ""
-                        }
-                    },
-                    modifier = Modifier.padding(start = 8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Pink)
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = "Enviar", tint = Night)
+                Button(onClick = { sendMessage() }, colors = ButtonDefaults.buttonColors(containerColor = Pink)) {
+                    Icon(Icons.Default.Send, contentDescription = "Enviar mensaje", tint = Night)
                 }
             }
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                "Sin acciones autónomas · tú tienes el control",
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                color = Ink.copy(alpha = 0.58f),
-                fontSize = 11.sp
-            )
+            Spacer(Modifier.height(6.dp))
+            Text("Pulsa el micrófono para dictar; revisa antes de enviar.", modifier = Modifier.align(Alignment.CenterHorizontally), color = Ink.copy(alpha = 0.58f), fontSize = 11.sp)
         }
     }
 }
 
 @Composable
-private fun MessageBubble(message: Message) {
+private fun MessageBubble(message: Message, onSpeak: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.fromSakura) Arrangement.Start else Arrangement.End
+        horizontalArrangement = if (message.fromSakura) Arrangement.Start else Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(0.88f),
-            colors = CardDefaults.cardColors(
-                containerColor = if (message.fromSakura) Panel else Pink.copy(alpha = 0.18f)
-            ),
+            colors = CardDefaults.cardColors(containerColor = if (message.fromSakura) Panel else Pink.copy(alpha = 0.18f)),
             shape = RoundedCornerShape(18.dp)
         ) {
-            Text(
-                message.text,
-                modifier = Modifier.padding(13.dp),
-                color = if (message.fromSakura) Ink else Pink,
-                fontSize = 15.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 13.dp, end = 5.dp, top = 7.dp, bottom = 7.dp)) {
+                Text(message.text, modifier = Modifier.weight(1f).padding(vertical = 6.dp), color = if (message.fromSakura) Ink else Pink, fontSize = 15.sp)
+                if (message.fromSakura) {
+                    IconButton(onClick = onSpeak) {
+                        Icon(Icons.Default.VolumeUp, contentDescription = "Leer respuesta en voz alta", tint = Aqua)
+                    }
+                }
+            }
         }
     }
 }
 
 private fun reply(text: String): String = when {
     text.contains("hola", true) || text.contains("buenas", true) ->
-        "¡Hola de nuevo! 🌸 Cuéntame qué tienes en mente y lo pensamos paso a paso."
-
+        "¡Hola! 🌸 Cuéntame qué tienes en mente y lo pensamos paso a paso."
     text.contains("ayuda", true) ->
-        "¡Claro! Puedo conversar, ayudarte a ordenar una idea o redactar un plan. ¿Por dónde empezamos? ✨"
-
+        "Puedo conversar con respuestas básicas y leer mis mensajes en voz alta. Todavía no tengo un modelo de IA conectado."
+    text.contains("qué puedes hacer", true) || text.contains("que puedes hacer", true) ->
+        "Puedes escribirme o dictarme un mensaje y leer mis respuestas con el botón de voz. Esta versión aún no usa un modelo inteligente local."
     text.contains("gracias", true) ->
         "¡De nada! Me alegra acompañarte 💖"
-
     else ->
-        "Te leo 🌸 Esta primera versión aún no tiene un modelo de IA conectado, pero puedo ayudarte a estructurar esa idea."
+        "Te leo 🌸 Esta respuesta es una demostración: Sakura todavía no tiene un modelo de IA conectado."
 }
