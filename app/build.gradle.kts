@@ -8,6 +8,11 @@ android {
     namespace = "com.sakura.agent"
     compileSdk = 35
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     defaultConfig {
         applicationId = "com.sakura.agent"
         minSdk = 26
