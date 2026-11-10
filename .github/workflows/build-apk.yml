@@ -22,7 +22,6 @@ jobs:
         with:
           repository: ggml-org/llama.cpp
           path: third_party/llama.cpp
-          # Pin to a stable upstream revision if reproducible builds are needed.
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -32,9 +31,13 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.6" "ndk;27.2.12479018"
+        with:
+          accept-android-sdk-licenses: true
+          packages: |
+            platforms;android-35
+            build-tools;35.0.0
+            cmake;3.31.6
+            ndk;27.2.12479018
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
