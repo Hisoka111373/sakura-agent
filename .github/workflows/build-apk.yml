@@ -31,13 +31,15 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
-          packages: |
-            platforms;android-35
-            build-tools;35.0.0
-            cmake;3.31.6
-            ndk;27.2.12479018
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "cmake;3.31.6" \
+            "ndk;27.2.12479018"
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
