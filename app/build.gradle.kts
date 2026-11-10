@@ -32,7 +32,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.31.6"
+            version = "3.22.1"
             arguments += listOf("-DLLAMA_SRC=${rootProject.projectDir}/third_party/llama.cpp")
         }
     }
