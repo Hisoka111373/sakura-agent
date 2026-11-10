@@ -90,6 +90,7 @@ private data class Message(val text: String, val fromSakura: Boolean)
 @Composable
 private fun SakuraScreen() {
     val context = LocalContext.current
+    val nativeLlama = remember { NativeLlama() }
     val messages = remember {
         mutableStateListOf(
             Message("¡Hola! Soy Sakura 🌸 Puedo conversar con respuestas básicas y leerlas en voz alta. ¿Qué hacemos hoy?", true)
@@ -98,6 +99,7 @@ private fun SakuraScreen() {
     var draft by remember { mutableStateOf("") }
     var voiceStatus by remember { mutableStateOf("") }
     var speechEngine by remember { mutableStateOf<TextToSpeech?>(null) }
+    var localModelStatus by remember { mutableStateOf("Modelo local no cargado") }
 
     DisposableEffect(context) {
         val engine = TextToSpeech(context) { status ->
@@ -131,8 +133,26 @@ private fun SakuraScreen() {
         val text = draft.trim()
         if (text.isNotEmpty()) {
             messages.add(Message(text, false))
-            messages.add(Message(reply(text), true))
+
+            val result = try {
+                val modelPath = context.filesDir.resolve("models").resolve("sakura-default.gguf").absolutePath
+                val error = nativeLlama.nativeLoad(modelPath)
+                if (error.isNotBlank()) {
+                    "No pude cargar el modelo local: $error"
+                } else {
+                    nativeLlama.nativeGenerate(text)
+                }
+            } catch (_: UnsatisfiedLinkError) {
+                "El motor local aún no está compilado para esta APK."
+            }
+
+            messages.add(Message(result.ifBlank { "Te leo 🌸 El motor local aún no está disponible." }, true))
             draft = ""
+            localModelStatus = if (result.contains("No pude cargar") || result.contains("motor local")) {
+                "Modelo local no disponible"
+            } else {
+                "Modelo local listo"
+            }
             voiceStatus = ""
         }
     }
@@ -152,7 +172,7 @@ private fun SakuraScreen() {
             Spacer(Modifier.height(14.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
                 Text(
-                    "Modo actual: respuestas de demostración, sin modelo de IA local. El micrófono usa el reconocedor de voz disponible en Android y podría requerir Internet. No ejecuto órdenes ni controlo otras apps. Tú revisas y envías cada mensaje.",
+                    "Modo actual: respuestas de demostración y carga local opcional. El micrófono usa el reconocedor de voz disponible en Android y podría requerir Internet. $localModelStatus",
                     modifier = Modifier.padding(14.dp),
                     color = Ink.copy(alpha = 0.86f),
                     fontSize = 13.sp
