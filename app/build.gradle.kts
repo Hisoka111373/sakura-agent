@@ -15,10 +15,28 @@ android {
 
     defaultConfig {
         applicationId = "com.sakura.agent"
-        minSdk = 26
+        minSdk = 33
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+
+        ndk { abiFilters += "arm64-v8a" }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf(
+                    "-DLLAMA_SRC=${rootProject.projectDir}/third_party/llama.cpp",
+                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                )
+            }
+        }
+    }
+
+    ndkVersion = "27.2.12479018"
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.31.6"
+        }
     }
 
     buildFeatures {
@@ -29,6 +47,11 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
