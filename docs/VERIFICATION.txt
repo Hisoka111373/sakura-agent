@@ -1,0 +1,18 @@
+Sakura 0.2.0 — source verification, not an Android APK build
+
+Kotlin 2.0.21 + Compose 2.0.21, Android API 35: PASS (all production Kotlin sources)
+
+JUnit version 4.13.2
+........
+Time: 0.05
+
+OK (8 tests)
+
+
+C++ JNI syntax against pinned llama.cpp: PASS
+bash syntax: PASS
+git diff whitespace: PASS
+Pinned llama.cpp fetch script: PASS (fresh checkout and idempotent repeat)
+Manifest XML and workflow YAML: parse PASS; CI contents permission is read-only
+
+NOT TESTED: Android Gradle build, native linking, APK, CI, physical device, inference, Keystore, voice, APK parsing, GitHub writes.
