@@ -33,3 +33,10 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Native source fetched at a pinned revision; models and secrets are never versioned.
+third_party/
+*.gguf
+*.part
+.env
+task.md
