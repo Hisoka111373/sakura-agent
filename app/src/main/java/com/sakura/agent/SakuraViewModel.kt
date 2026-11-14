@@ -19,6 +19,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     private val app = application
     private val store = PrivateStore(app)
     private val github = GitHubClient()
+    val features = FeatureController(this, app, store)
     private val executor = Executors.newSingleThreadExecutor()
     private val nativeWorker = executor.asCoroutineDispatcher()
     private var engine: NativeLlama? = null
@@ -69,11 +70,32 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             memories = saved.first; level = saved.second; humor = saved.third
             hasToken = withContext(Dispatchers.IO) { !store.read("github_token").isNullOrBlank() }
             models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
+            features.initialize()
             status = "Todo local. Importa y carga un modelo GGUF para conversar."
         }
     }
 
     fun notice(text: String) { status = text }
+
+    internal fun workFeature(label: String, block: suspend () -> Unit) = work(label, block)
+    internal suspend fun refreshModels() { models = withContext(Dispatchers.IO) { LocalFiles.models(app) } }
+    internal fun invalidateRepo() { repoFile = null; pendingEdit = null }
+
+    fun proposePlan(goal: String) {
+        if (loadedModel == null) { notice("Carga un GGUF para planificar localmente. También puedes editar un plan JSON manual."); return }
+        if (!NetworkPolicy.text(goal,2000)) { notice("Objetivo requerido, máximo 2000 caracteres; no incluyas tokens."); return }
+        work("Proponiendo un plan local, sin ejecutar herramientas…") {
+            native().nativeResetCancellation(); generating = true
+            val proposed = withContext(nativeWorker) { native().generate(AgentPlanner.prompt, listOf(ChatMessage(goal,false))) }
+            features.receivePlan(proposed)
+        }
+    }
+
+    fun memoryStats() {
+        val manager = app.getSystemService(android.app.ActivityManager::class.java)
+        val info = android.app.ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+        notice("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}\nRAM total ${info.totalMem / (1024*1024)} MiB; disponible ${info.availMem / (1024*1024)} MiB; PSS actual Sakura ${android.os.Debug.getPss() / 1024} MiB. Es una muestra, NO RAM pico ni garantía de rapidez.")
+    }
 
     private fun work(label: String, block: suspend () -> Unit) {
         if (busy) { status = "Espera a que termine la operación actual."; return }
@@ -88,8 +110,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun setInternet(allowed: Boolean) {
         if (busy) return
         internetAllowed = allowed
-        if (!allowed) pendingEdit = null
-        status = if (allowed) "GitHub y servicios de voz pueden usar Internet al pulsar sus botones." else "Red desautorizada en Sakura. Los servicios externos de Android tienen su propia configuración."
+        if (!allowed) { pendingEdit = null; features.revokeNetwork() }
+        status = if (allowed) "GitHub, mensajería, descargas y generación nube pueden usar Internet con tus botones y confirmaciones." else "Red desautorizada en Sakura. Los servicios externos de Android tienen su propia configuración."
     }
 
     fun preferences(newLevel: String, newHumor: Boolean) = work("Guardando preferencias…") {
@@ -130,9 +152,10 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun loadModel(model: ModelEntry) = work("Cargando modelo en CPU; puede tardar…") {
         require(models.any { it.id == model.id })
         loadedModel = null
+        val start = android.os.SystemClock.elapsedRealtime()
         withContext(nativeWorker) { native().nativeLoad(File(LocalFiles.modelDir(app), model.id).path) }
         loadedModel = model; messages = emptyList()
-        status = "${model.name} cargado. Inferencia local · contexto 2048 · máximo 384 tokens por respuesta."
+        status = "${model.name} cargado en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. CPU · contexto 2048 · máximo 384 tokens de salida."
     }
 
     fun unloadModel() = work("Liberando modelo…") {
@@ -165,9 +188,10 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             engine?.nativeResetCancellation()
             generating = true
             try {
+                val start = android.os.SystemClock.elapsedRealtime()
                 val answer = withContext(nativeWorker) { native().generate(system, history) }
                 messages = messages + ChatMessage(answer, true)
-                status = "Respuesta local. Solo las últimas tres parejas y doce notas se usan como contexto."
+                status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. Últimas tres parejas y doce notas en contexto; no es garantía de rendimiento."
             } catch (error: Exception) {
                 messages = previous; draft = text
                 throw error
@@ -244,6 +268,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     override fun onCleared() {
+        features.close()
         engine?.nativeCancel()
         executor.execute { engine?.nativeUnload() }
         executor.shutdown()

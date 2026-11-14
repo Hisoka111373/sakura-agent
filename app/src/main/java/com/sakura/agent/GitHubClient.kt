@@ -60,6 +60,58 @@ class GitHubClient {
         return response.getJSONObject("commit").getString("sha")
     }
 
+    fun list(owner: String, repo: String, branch: String, kind: String, token: String): String {
+        val suffix = when (kind) {
+            "Ramas" -> "/branches?per_page=50"
+            "Commits" -> "/commits?sha=${ref(branch)}&per_page=30"
+            "Pull requests" -> "/pulls?state=open&per_page=30"
+            else -> error("Consulta no admitida.")
+        }
+        val items = request("GET",base(owner,repo)+suffix,token).getJSONArray("items")
+        return "$kind de $owner/$repo (primera página, no listado completo):\n" + (0 until items.length()).joinToString("\n") {
+            val item = items.getJSONObject(it)
+            when (kind) {
+                "Ramas" -> item.getString("name") + " · " + item.getJSONObject("commit").getString("sha")
+                "Commits" -> item.getString("sha") + " · " + item.getJSONObject("commit").getString("message").take(200)
+                else -> "#${item.getInt("number")} ${item.getString("title")}\n${item.getString("html_url") }"
+            }
+        }
+    }
+
+    fun branchSha(owner: String, repo: String, branch: String, token: String): String =
+        request("GET",base(owner,repo)+"/git/ref/heads/${ref(branch)}",token).getJSONObject("object").getString("sha")
+
+    fun createBranch(owner: String, repo: String, newBranch: String, sha: String, token: String): String {
+        require(token.isNotBlank() && NetworkPolicy.branch(newBranch) && sha.matches(Regex("[0-9a-f]{40}"))) { "Rama, SHA o credencial inválidos." }
+        val r = request("POST",base(owner,repo)+"/git/refs",token,JSONObject().put("ref","refs/heads/$newBranch").put("sha",sha).toString())
+        return "Rama creada: ${r.getString("ref")} @ ${r.getJSONObject("object").getString("sha")}"
+    }
+
+    fun createFile(owner: String, repo: String, branch: String, path: String, text: String, message: String, token: String): String {
+        require(token.isNotBlank() && AgentPolicy.validPath(path) && NetworkPolicy.branch(branch) &&
+            text.toByteArray(Charsets.UTF_8).size <= AgentPolicy.MAX_SOURCE_BYTES && NetworkPolicy.text(message,200)) { "Datos de archivo o token inválidos." }
+        val url = base(owner,repo)+"/contents/"+path.split('/').joinToString("/") { encode(it) }
+        val body = JSONObject().put("branch",branch).put("message",message)
+            .put("content",Base64.encodeToString(text.toByteArray(Charsets.UTF_8),Base64.NO_WRAP))
+        // No SHA: GitHub rejects this request if the file already exists. Never overwrite implicitly.
+        return request("PUT",url,token,body.toString()).getJSONObject("commit").getString("sha")
+    }
+
+    fun deleteFile(source: RepoFile, message: String, token: String): String {
+        require(token.isNotBlank() && AgentPolicy.validPath(source.path) && NetworkPolicy.text(message,200)) { "Datos de borrado inválidos." }
+        val url = base(source.owner,source.repo)+"/contents/"+source.path.split('/').joinToString("/") { encode(it) }
+        val body = JSONObject().put("branch",source.branch).put("sha",source.sha).put("message",message)
+        return request("DELETE",url,token,body.toString()).getJSONObject("commit").getString("sha")
+    }
+
+    fun createPr(owner: String, repo: String, head: String, baseBranch: String, title: String, body: String, token: String): String {
+        require(token.isNotBlank() && NetworkPolicy.branch(head) && NetworkPolicy.branch(baseBranch) && head != baseBranch &&
+            NetworkPolicy.text(title,200) && body.length <= 10000) { "Datos del pull request inválidos." }
+        val r = request("POST",base(owner,repo)+"/pulls",token,JSONObject().put("head",head).put("base",baseBranch)
+            .put("title",title).put("body",body).toString())
+        return "Pull request #${r.getInt("number")} creado: ${r.getString("html_url") }"
+    }
+
     private fun request(method: String, path: String, token: String, body: String? = null): JSONObject {
         require(token.none { it.code < 32 }) { "Token inválido." }
         val connection = URI("https://api.github.com$path").toURL().openConnection() as HttpURLConnection
@@ -99,7 +151,9 @@ class GitHubClient {
                 }
                 output.toString("UTF-8")
             }
-            return JSONObject(result)
+            return if (result.trimStart().startsWith("[")) JSONObject().put("items",org.json.JSONArray(result)) else JSONObject(result)
+        } catch (_: java.io.IOException) {
+            error("GitHub: fallo de conexión. Si era una escritura, revisa el historial antes de repetir; el servidor puede haberla aplicado.")
         } finally { connection.disconnect() }
     }
 }
