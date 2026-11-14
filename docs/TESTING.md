@@ -3,11 +3,14 @@
 ## Estado de la entrega
 
 La validación realizada es estática/JVM, no una certificación funcional. No se ha
-generado APK ni ejecutado CI; no se ha usado un teléfono ni un modelo real.
+usado un teléfono ni un modelo real. La versión 0.2 compiló APK ARM64 en Actions
+(run 43304984898) y se integró mediante PR #3. Para 0.3 revisa el nuevo commit y su
+CI: un build anterior no verifica las funciones nuevas. Pruebas adicionales en
+[FEATURES-0.3.md](FEATURES-0.3.md).
 
 Comprobaciones realizadas:
 
-1. `scripts/check-policy.sh`: 8 pruebas JUnit, todas aprobadas.
+1. `scripts/check-policy.sh`: 30 pruebas JUnit (reglas, red, catálogo y planes), todas aprobadas.
 2. Kotlin 2.0.21 + plugin Compose 2.0.21: todos los archivos `.kt` de producción
    compilados a un JAR de comprobación, con android.jar API 35 y dependencias AndroidX.
    El JAR no se entrega como aplicación y no puede instalarse en Android.
@@ -16,8 +19,9 @@ Comprobaciones realizadas:
    `llama_model_params.use_mmap`, ausente en esta revisión.
 4. `bash -n` para ambos scripts y `git diff --check`: aprobados.
 
-No están verificados el Gradle DSL completo, empaquetado de bibliotecas compartidas,
-enlazado ARM64, arranque, voz, firmas APK, Keystore ni integración de escritura GitHub.
+El build 0.2 comprobó Gradle/empaquetado/enlazado ARM64; no prueba arranque, voz,
+firmas APK, Keystore, inferencia real ni escritura GitHub desde el teléfono.
+Esos aspectos y todas las integraciones nuevas requieren pruebas en dispositivo.
 
 ## Preparación
 
@@ -33,7 +37,7 @@ enlazado ARM64, arranque, voz, firmas APK, Keystore ni integración de escritura
 
 - [ ] Compilar `testDebugUnitTest` y `assembleDebug` con la revisión nativa fijada.
 - [ ] Instalar y abrir sin fallos JNI; comprobar colores originales y barras del sistema.
-- [ ] Recorrer las seis pestañas con teclado, fuente grande y pantalla pequeña.
+- [ ] Recorrer las diez pestañas con teclado, fuente grande y pantalla pequeña.
 - [ ] Rotar durante carga/generación: no iniciar inferencias duplicadas.
 - [ ] Confirmar que no se permiten capturas de pantalla ni vista reciente con contenido sensible.
 

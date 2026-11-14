@@ -78,6 +78,12 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
     val chooseModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::importModel) }
     val chooseCode = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::importSource) }
     val chooseApk = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::inspectApk) }
+    var exportFile by remember { mutableStateOf<DownloadedFile?>(null) }
+    val exportDownload = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val selected = exportFile
+        exportFile = null
+        if (uri != null && selected != null) vm.features.export(selected,uri)
+    }
 
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(18.dp)) {
@@ -92,7 +98,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 TextButton(onClick = { voice.stop(); vm.notice("Voz detenida.") }) { Text("Silencio") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Chat", "Memoria", "Modelos", "Herramientas", "GitHub", "Privacidad").forEach { page ->
+                listOf("Chat", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
@@ -109,6 +115,14 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                     "Modelos" -> ModelsPage(vm, { chooseModel.launch(arrayOf("*/*")) }, confirm)
                     "Herramientas" -> ToolsPage(vm, { chooseCode.launch(arrayOf("*/*")) }, { chooseApk.launch(arrayOf("*/*")) }, confirm)
                     "GitHub" -> GithubPage(vm)
+                    "Plan" -> PlanPage(vm)
+                    "Descargas" -> DownloadsPage(vm, { file ->
+                        confirm("Exportar una copia de ${file.name} a la ubicación que elijas. Fuera del almacenamiento privado, otras apps pueden acceder a ella.") {
+                            exportFile = file; exportDownload.launch(file.name)
+                        }
+                    })
+                    "Crear" -> CreateMediaPage(vm,confirm)
+                    "Mensajes" -> MessagesPage(vm,confirm)
                     "Privacidad" -> PrivacyPage(vm) { voice.stop(); vm.setInternet(it) }
                 }
             }
@@ -134,6 +148,15 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 }
             }, dismissButton = { TextButton(onClick = vm::dismissEdit) { Text("Cancelar") } },
             confirmButton = { Button(enabled = !vm.busy && vm.internetAllowed && vm.hasToken, onClick = vm::confirmEdit) { Text("Confirmar commit") } })
+    }
+    vm.features.pending?.let { action ->
+        AlertDialog(onDismissRequest = vm.features::dismiss, title = { Text("Revisar acción completa") },
+            text = { Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
+                SelectionContainer { Text(action.preview, fontSize = 13.sp) }
+                Text("Solo esta acción. No continúa automáticamente con el siguiente paso.",color = Aqua)
+            } },
+            dismissButton = { TextButton(onClick = vm.features::dismiss) { Text("Cancelar") } },
+            confirmButton = { Button(enabled = !vm.busy && (!action.network || vm.internetAllowed), onClick = vm.features::confirm) { Text("Confirmar esta acción") } })
     }
 }
 
@@ -209,7 +232,8 @@ private fun MemoryPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Uni
 @Composable
 private fun ModelsPage(vm: SakuraViewModel, choose: () -> Unit, confirm: (String, () -> Unit) -> Unit) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Info("Motor llama.cpp en CPU · Android 13+ ARM64. No se incluyen pesos ni se descargan sin tu intervención. Para 8 GB de RAM empieza con un instruct de 0.5–1.5B cuantizado Q4. GGUF es un formato, no una garantía de compatibilidad. Límite de importación: 2.5 GB; contexto: 2048 tokens.") }
+        item { Info("Motor llama.cpp en CPU · Android 13+ ARM64. Qwen2.5 3B Q4_K_M es el candidato inicial para tu teléfono de 8 GB; prueba 1.5B si resulta lento o consume demasiada RAM. Archivo ≠ memoria necesaria. En Descargas tienes el catálogo con licencia, tamaño y hash. No se promete rapidez. Importación: 2.5 GB; contexto: 2048 tokens.") }
+        item { Row { TextButton(onClick = { vm.page = "Descargas" }) { Text("Catálogo y descargas") }; TextButton(enabled = !vm.busy,onClick = vm::memoryStats) { Text("Medir RAM actual") } } }
         item { Button(enabled = !vm.busy, onClick = choose) { Text("Importar GGUF seleccionado · local") } }
         items(vm.models, key = { it.id }) { model ->
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
@@ -277,6 +301,7 @@ private fun GithubPage(vm: SakuraViewModel) {
         Field("Propietario", owner, { owner = it }, !vm.busy)
         Field("Repositorio", repo, { repo = it }, !vm.busy)
         Field("Rama existente", branch, { branch = it }, !vm.busy)
+        GithubExtras(vm,owner,repo,branch,path)
         Field("Ruta de archivo", path, { path = it }, !vm.busy)
         Button(enabled = !vm.busy && vm.internetAllowed, onClick = { vm.readTree(owner, repo, branch) }) { Text("Listar archivos · Internet") }
         Button(enabled = !vm.busy && vm.internetAllowed, onClick = { vm.readRepo(owner, repo, branch, path) }) { Text("Leer archivo · Internet") }
@@ -290,6 +315,7 @@ private fun GithubPage(vm: SakuraViewModel) {
             Field("Mensaje del commit", commit, { commit = it.take(200) }, !vm.busy)
             Button(enabled = !vm.busy && vm.internetAllowed && vm.hasToken && replacement != source.text,
                 onClick = { vm.prepareEdit(replacement, commit) }) { Text("Revisar antes de escribir…") }
+            OutlinedButton(enabled = !vm.busy && vm.internetAllowed && vm.hasToken,onClick = { vm.features.prepareDeleteFile(source,commit) }) { Text("Revisar borrado de este archivo…") }
         }
     }
 }
@@ -298,7 +324,7 @@ private fun GithubPage(vm: SakuraViewModel) {
 private fun PrivacyPage(vm: SakuraViewModel, onInternet: (Boolean) -> Unit) {
     var token by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Info("LOCAL: inferencia GGUF, recuerdos cifrados, lectura de código, análisis de APK y solicitud de abrir apps. RED: consultas y commits en GitHub; voz si el servicio elegido la requiere. Sakura no envía chats ni recuerdos a un proveedor de IA.")
+        Info("LOCAL: chat y planificación GGUF, recuerdos cifrados, lectura de código y análisis de APK. RED: GitHub, descargas, APIs de mensajes, fal.ai y voz si la requiere. Crear en nube envía únicamente el prompt que revisas, no el chat ni los recuerdos. Compartir con otras apps usa sus propios permisos y conexiones.")
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Autorizar funciones con Internet", Modifier.weight(1f))
             Switch(checked = vm.internetAllowed, enabled = !vm.busy, onCheckedChange = onInternet)
@@ -324,18 +350,19 @@ private fun PrivacyPage(vm: SakuraViewModel, onInternet: (Boolean) -> Unit) {
             TextButton(enabled = !vm.busy && vm.hasToken, onClick = { vm.saveToken(""); token = "" }) { Text("Borrar token") }
         }
         Text("El cifrado protege el almacenamiento, no un teléfono comprometido. Desinstalar borra datos privados; los archivos originales importados no se borran. Revocar acceso requiere revocar el token también en GitHub.", fontSize = 12.sp)
+        ServiceCredentials(vm)
     }
 }
 
 @Composable
-private fun Info(text: String) {
+internal fun Info(text: String) {
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
         Text(text, Modifier.fillMaxWidth().padding(14.dp), color = Ink.copy(alpha = 0.86f), fontSize = 13.sp)
     }
 }
 
 @Composable
-private fun Field(label: String, value: String, change: (String) -> Unit, enabled: Boolean, singleLine: Boolean = true) {
+internal fun Field(label: String, value: String, change: (String) -> Unit, enabled: Boolean, singleLine: Boolean = true) {
     OutlinedTextField(value = value, onValueChange = change, enabled = enabled, label = { Text(label) },
         modifier = Modifier.fillMaxWidth(), singleLine = singleLine, maxLines = if (singleLine) 1 else 5)
 }

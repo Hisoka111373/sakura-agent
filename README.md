@@ -2,9 +2,50 @@
 
 Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno rosa/turquesa.
 
-**Esta entrega es código fuente, no una APK probada.** La compilación Android completa, el
-enlazado JNI y las pruebas en dispositivo siguen pendientes.
+**La APK no está probada en un teléfono.** La versión 0.2 compiló en GitHub Actions
+y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
+Para la ampliación 0.3 consulta su pull request y Actions: no asumas que un build
+anterior verifica las nuevas funciones. Las pruebas en dispositivo siguen pendientes.
 El chat ya no utiliza respuestas predefinidas: necesita importar y cargar un modelo real.
+
+## Ampliación 0.3 — herramientas con revisión humana
+
+- **Plan:** GGUF propone JSON limitado a 6 pasos. Se valida una lista cerrada de
+  herramientas; cada acción tiene vista previa y confirmación individual. No hay
+  ejecución encadenada, comandos de shell ni reintentos automáticos. Si editas el
+  JSON debes validarlo otra vez. Se muestra evidencia recibida, no resultados inventados.
+- **Descargas:** catálogo de chat/imagen/video con revisiones y SHA-256 fijados.
+  Qwen2.5 3B Q4_K_M oficial es el candidato inicial para un teléfono de 8 GB:
+  **2,104,932,768 bytes (~2.10 GB / 1.96 GiB)**. Prueba 1.5B si resulta lento.
+  Tamaño de archivo ≠ RAM necesaria; no hay garantía de rapidez ni compatibilidad.
+- **Archivos multimedia:** URL HTTPS directa pública autorizada; imagen/video hasta
+  512 MiB, 5 redirecciones máximo y 45 minutos por descarga. Se validan IPs públicas
+  en el DNS usado por la conexión, sin proxies, cookies ni tokens de servicios.
+  Sin extraer YouTube/HLS, entrar en cuentas ni eludir DRM. Guardado privado,
+  cancelación, borrado confirmado y exportación por selector Android.
+- **Mensajes:** compartir borrador con WhatsApp/Telegram para que tú elijas contacto
+  y pulses Enviar, o enviar por APIs oficiales tras confirmar destinatario y texto.
+  Telegram requiere bot y Chat ID permitido; **no actúa como tu cuenta personal**.
+  WhatsApp requiere Business/Cloud API, token Meta y Phone Number ID: esta versión
+  solo envía texto en ventana de servicio de 24 h, sin plantillas ni webhooks.
+  Aceptación de la API no garantiza entrega o lectura.
+- **Crear:** imagen (`fal-ai/flux/schnell`) o video (`fal-ai/ltx-video`) en fal.ai
+  usando tu clave, Internet autorizado y confirmación del prompt y posible gasto.
+  No envía chat ni recuerdos. No impone tope monetario; revisa tarifa/licencia y cuota
+  en fal.ai. Las URLs de salida pueden ser públicas y expirar. Consultar/cancelar
+  trabajo no reenvía generación; el último ID se guarda cifrado y puede recuperarse.
+- **GitHub ampliado:** consultar ramas/commits/PR, crear ramas desde un SHA revisado,
+  crear texto nuevo sin sobrescritura implícita, editar o borrar texto con SHA leído,
+  y crear pull requests. No incluye toda la API: no borra repositorios, administra
+  secretos/permisos ni mezcla PR automáticamente. Requiere permisos mínimos por acción.
+- **Medición:** RAM total/disponible y PSS actual de Sakura; tiempo real de carga
+  y respuesta. Son muestras, **no RAM pico ni benchmark certificado**.
+
+**Generación visual local no instalada:** los checkpoints SD1.5/LTX del catálogo
+son descargas para evaluación externa. No se cargan con llama.cpp ni convierten
+Sakura en un motor de difusión. Necesitan otro runtime, componentes compatibles
+y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
+[docs/FEATURES-0.3.md](docs/FEATURES-0.3.md) para configuración, límites y pruebas.
 
 ## Integración en GitHub
 
@@ -23,11 +64,11 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 | Aprendizaje | Nivel principiante/intermedio/avanzado persistente. Adapta instrucciones al modelo; no reentrena pesos. |
 | IA local | Puente JNI a llama.cpp fijado a un commit; importar, cargar, cambiar, liberar y borrar GGUF. CPU, 2048 tokens de contexto, hasta 384 de salida. |
 | Programación | Importar texto UTF-8 de hasta 64 KiB y pedir explicaciones/sugerencias para Python, Java, Kotlin, HTML y JavaScript. No ejecuta ni compila código. |
-| GitHub | Listar archivos y leer texto. Editar un archivo existente con SHA de lectura, vista previa completa y confirmación antes de un commit real en la rama elegida. |
+| GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. |
 | Android | Listar actividades de inicio visibles y abrir una app elegida con confirmación. No controla su interfaz. |
 | APK | Revisar la APK seleccionada: paquete, versión, SDK, permisos, hashes de certificado y archivo, bibliotecas. Sin instalar, ejecutar ni extraer ZIP. No es antivirus ni verificación completa de firma. |
 | Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local. |
-| Privacidad | Red desautorizada al iniciar cada sesión. Chat solo en RAM; memoria y token cifrados. Sin proveedor de IA remoto ni analítica añadida. Capturas de pantalla bloqueadas mediante FLAG_SECURE. |
+| Privacidad | Red desautorizada al iniciar cada sesión. Chat solo en RAM; memoria y credenciales cifradas. fal.ai solo recibe el prompt visual confirmado; no hay chat remoto ni analítica añadida. Capturas bloqueadas mediante FLAG_SECURE. |
 
 ## Requisitos y compatibilidad
 
@@ -45,9 +86,11 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 
 ### Modelo inicial sugerido (no incluido)
 
-Como primer candidato de prueba, descarga manualmente
-[Qwen2.5-1.5B-Instruct-GGUF oficial](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF)
-y elige `qwen2.5-1.5b-instruct-q4_k_m.gguf`. Para enfocarte en código puedes evaluar
+Como primer candidato de prueba para 8 GB, usa el catálogo para descargar
+[Qwen2.5-3B-Instruct-GGUF oficial](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
+en Q4_K_M. Su licencia específica debe revisarse antes de usarlo. La alternativa menor es
+[Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
+Para enfocarte en código puedes evaluar
 [Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF).
 Revisa su licencia y tarjeta antes de descargar. No se redistribuyen pesos, no se añade
 descarga automática y ninguno de estos candidatos se ha ejecutado en esta entrega.
@@ -108,8 +151,10 @@ Se eliminó la copia redundante en `github/workflows/`, que GitHub no ejecuta.
   Keystore y se envía solo a `api.github.com` por HTTPS; no se siguen redirecciones.
 - Leer archivo → llevar al borrador → pedir sugerencias locales → editar el contenido en
   GitHub → Revisar antes de escribir → inspeccionar ANTES/DESPUÉS → Confirmar commit.
-- No se crean ramas ni pull requests automáticamente. Escribe en una rama existente de
-  trabajo. La confirmación indica repositorio, rama, ruta, SHA, contenido y mensaje.
+- Crear ramas/PR requiere tus botones y confirmación. Usa una rama de trabajo.
+  La confirmación de archivos indica repositorio, rama, ruta, SHA (si existe), contenido
+  y mensaje. Crear PR requiere `Pull requests: write`; cambiar workflows puede requerir
+  `Workflows: write` además de `Contents: write`.
 - Un error o timeout de escritura obliga a releer. Comprueba GitHub antes de repetir:
   el servidor podría haber aplicado el cambio aunque no llegara la respuesta.
 - Borrar el token local no lo revoca en GitHub; revócalo también en tu cuenta.
@@ -128,13 +173,15 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 8 pruebas JVM de reglas: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- 30 pruebas JVM de reglas/URLs/catálogo/planes: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:
   aprobado. No enlaza la biblioteca ni prueba instrucciones ARM64.
 - Scripts: `bash -n` y comprobación de parche: aprobados.
-- **Pendiente:** build APK completo, CI, inferencia real, rendimiento, Keystore, voz,
-  APK de prueba, aplicaciones y operaciones reales de GitHub en un Android físico.
+- Build Android/ARM64 de 0.2: aprobado en Actions. Consulta CI del nuevo commit para 0.3.
+- **Pendiente en dispositivo:** inferencia real, RAM pico/rendimiento, Keystore, voz,
+  APK de prueba, apps, exportaciones, downloads completos y operaciones de GitHub,
+  mensajería y fal.ai. No se enviaron mensajes ni se gastaron créditos para probar.
 
 Consulta [docs/TESTING.md](docs/TESTING.md) antes de usarla con datos o repositorios importantes.

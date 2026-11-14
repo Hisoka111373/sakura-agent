@@ -17,8 +17,8 @@ android {
         applicationId = "com.sakura.agent"
         minSdk = 33
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
@@ -51,7 +51,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0") // DNS validation is bound to the actual download connection.
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303") // Real JSON implementation for pure JVM plan tests.
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
