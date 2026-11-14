@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -21,6 +22,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     private val github = GitHubClient()
     val features = FeatureController(this, app, store)
     val skills = SkillsController(this, app, store)
+    val agent = AgentController(this, app, store)
     private val executor = Executors.newSingleThreadExecutor()
     private val nativeWorker = executor.asCoroutineDispatcher()
     private var engine: NativeLlama? = null
@@ -80,6 +82,22 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun notice(text: String) { status = text }
 
     internal fun workFeature(label: String, block: suspend () -> Unit) = work(label, block)
+    internal val agentScope get() = viewModelScope
+    internal suspend fun <T> exclusive(label: String, block: suspend () -> T): T {
+        while (busy) delay(50)
+        busy = true; status = label
+        try { return block() } finally { busy = false; generating = false }
+    }
+    internal suspend fun generateAgent(system: String, history: List<ChatMessage>): String {
+        val chosen = skills.config
+        return if (chosen.provider == "Local") {
+            if (loadedModel == null) error("Carga un GGUF en Modelos o configura una API de texto en APIs.")
+            engine?.nativeResetCancellation()
+            generating = true
+            try { withContext(nativeWorker) { native().generate(system, history) } }
+            finally { generating = false }
+        } else skills.generateCloud(system, history)
+    }
     internal suspend fun refreshModels() { models = withContext(Dispatchers.IO) { LocalFiles.models(app) } }
     internal fun invalidateRepo() { repoFile = null; pendingEdit = null }
     internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
@@ -276,6 +294,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     override fun onCleared() {
+        agent.close()
         features.close()
         skills.close()
         SakuraAccessibilityService.connected?.stopSession()

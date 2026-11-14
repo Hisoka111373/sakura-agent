@@ -84,6 +84,15 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         try { prepareExternal(Skills.searchUrl(kind,query),when(kind) { "YouTube" -> "com.google.android.youtube"; "Juegos" -> "com.android.vending"; else -> null }) }
         catch(e:Exception) { vm.notice(e.message?:"Consulta inválida.") }
     }
+    internal suspend fun generateCloud(system: String, history: List<ChatMessage>): String = withContext(Dispatchers.IO) {
+        check(vm.internetAllowed) { "Red desautorizada." }
+        require(config.provider != "Local") { "Selecciona un proveedor de texto o carga un GGUF." }
+        client.generate(config, store.read(config.key) ?: "", history, system, 768)
+    }
+    internal suspend fun searchWeb(query: String): List<SearchResult> = withContext(Dispatchers.IO) {
+        check(vm.internetAllowed) { "Red desautorizada." }
+        client.search(store.read("brave_key") ?: "", query)
+    }
     fun cancel() { client.cancel(); vm.notice("Cancelación de red solicitada; revisa consumo del proveedor.") }
     fun close() { client.cancel() }
 }

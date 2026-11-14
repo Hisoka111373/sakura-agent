@@ -17,6 +17,10 @@ object Skills {
         SakuraSkill("Aprender", "Chat", "Explícame este tema paso a paso con ejemplos y un ejercicio."),
         SakuraSkill("Redactar", "Chat", "Ayúdame a redactar este texto; no envíes nada."),
         SakuraSkill("Comparar", "Chat", "Compara las opciones con criterios explícitos y señala datos faltantes."),
+        SakuraSkill("Agente autónomo con herramientas", "Agente"),
+        SakuraSkill("Buscar, leer y resumir webs", "Agente"),
+        SakuraSkill("YouTube: buscar audio/video", "Agente"),
+        SakuraSkill("Generar imagen (Pollinations)", "Agente"),
         SakuraSkill("Planificar", "Plan"), SakuraSkill("Buscar web", "Buscar"),
         SakuraSkill("Buscar música / YouTube", "Buscar"), SakuraSkill("Buscar juegos oficiales", "Buscar"),
         SakuraSkill("Descargar archivo autorizado", "Descargas"), SakuraSkill("Leer código / APK", "Herramientas"),
@@ -62,4 +66,10 @@ object ScreenPolicy {
     fun click(label: String): Boolean = safe(label,false) &&
         Regex("^(search|buscar|busqueda|search youtube|buscar en youtube|search in|buscar en|back|atras|close|cerrar)( .*)?$")
             .matches(Skills.normalized(label.trim()))
+    private val sensitive = setOf("com.android.settings", "com.google.android.packageinstaller",
+        "com.android.packageinstaller", "com.android.permissioncontroller",
+        "com.google.android.permissioncontroller", "com.google.android.gms")
+    fun generalPackage(value: String): Boolean = value.length in 3..200 &&
+        value.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) &&
+        value != "com.sakura.agent" && value !in sensitive
 }

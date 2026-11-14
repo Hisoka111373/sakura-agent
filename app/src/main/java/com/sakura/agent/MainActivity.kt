@@ -98,7 +98,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 TextButton(onClick = { voice.stop(); vm.notice("Voz detenida.") }) { Text("Silencio") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Chat", "Skills", "Buscar", "Pantalla", "APIs", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
+                listOf("Chat", "Agente", "Skills", "Buscar", "Pantalla", "APIs", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
@@ -106,6 +106,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
             Text(vm.status, color = Aqua, fontSize = 12.sp, modifier = Modifier.padding(vertical = 7.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (vm.page) {
+                    "Agente" -> AgentPage(vm)
                     "Chat" -> ChatPage(vm, { message -> voice.speak(message, vm.internetAllowed) }, {
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                             voice.dictate(vm.internetAllowed)

@@ -2,7 +2,7 @@ name: Build Sakura Agent APK
 
 on:
   push:
-    branches: [ main, 'copilot/**', 'feature/**' ]
+    branches: [ main, 'copilot/**', 'feature/**', 'sakura-v0.5-agent' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:

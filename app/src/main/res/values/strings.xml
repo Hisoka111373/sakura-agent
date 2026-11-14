@@ -1,3 +1,3 @@
 <resources>
-    <string name="accessibility_disclosure">Sakura: automatización manual de búsqueda. Puede leer controles de la pantalla autorizada y escribir consultas únicamente en sesiones de 3 minutos con confirmación por acción. No lee en reposo, no hace capturas ni envía pantalla a APIs. Detén la sesión con el botón visible; desactiva el servicio en Ajustes cuando no lo necesites. No automatiza mensajes, pagos, permisos ni instalaciones.</string>
+    <string name="accessibility_disclosure">Sakura: automatización manual de una app elegida. Puede leer controles visibles de esa app y pulsar o escribir únicamente en sesiones de 3 minutos, con confirmación por acción. No lee en reposo, no hace capturas ni envía la pantalla a APIs. Detén la sesión con el botón visible; desactiva el servicio en Ajustes cuando no lo necesites. No automatiza mensajes, pagos, permisos, instalaciones ni contraseñas.</string>
 </resources>

@@ -8,7 +8,8 @@ object NetworkPolicy {
     const val MAX_MEDIA_BYTES = 512L * 1024 * 1024
     const val MAX_VISUAL_MODEL_BYTES = 5_000_000_000L
     val credentialKeys = setOf("telegram_token", "whatsapp_token", "whatsapp_phone_id", "fal_key",
-        "openai_key", "compatible_key", "gemini_key", "anthropic_key", "brave_key")
+        "openai_key", "openrouter_key", "groq_key", "deepseek_key", "mistral_key", "xai_key",
+        "together_key", "fireworks_key", "compatible_key", "gemini_key", "anthropic_key", "brave_key")
     fun https(value: String): URI {
         require(value.length in 10..4096 && value.none { it.code < 32 }) { "URL inválida." }
         val uri = URI(value)
@@ -31,6 +32,16 @@ object NetworkPolicy {
         require(uri.host.contains('.') && uri.host != "localhost" && !uri.host.endsWith(".local")) { "No se permiten destinos locales." }
         val addresses = InetAddress.getAllByName(uri.host)
         require(addresses.isNotEmpty() && addresses.all { publicAddress(it.address) }) { "El destino no tiene solo direcciones públicas." }
+        return uri
+    }
+    private val youtubeHosts = listOf("googlevideo.com", "youtube.com", "youtu.be", "ytimg.com", "youtube-nocookie.com")
+    /** Direct media only: YouTube/Piped stream URLs are for playback, never for extraction. */
+    fun directDownload(value: String): URI {
+        val uri = https(value)
+        val host = uri.host.lowercase()
+        require(!host.contains("piped") && youtubeHosts.none { host == it || host.endsWith(".$it") }) {
+            "No se descargan streams de YouTube. Usa el enlace para reproducir en la app o el navegador."
+        }
         return uri
     }
     fun branch(value: String): Boolean = value.length in 1..200 &&

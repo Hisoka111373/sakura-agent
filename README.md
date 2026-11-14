@@ -4,9 +4,42 @@ Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno ro
 
 **La APK no está probada en un teléfono.** La versión 0.2 compiló en GitHub Actions
 y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
-La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. Para 0.4
-consulta su propio pull request/CI: las pruebas en dispositivo siguen pendientes.
+La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. La 0.4 tiene su
+propio PR/CI. La 0.5 está en la rama `sakura-v0.5-agent`; su build Android sigue
+pendiente de GitHub Actions y las pruebas en dispositivo siguen sin hacerse.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
+
+## Ampliación 0.5 — agente con herramientas
+
+- **Bucle acotado de 10 pasos.** El modelo solo propone un objeto JSON por paso
+  (`{"tool":"...","args":{...}}` o `{"final":"..."}`). Kotlin valida el esquema, los
+  argumentos y la lista cerrada de herramientas; el modelo nunca recibe callbacks
+  ejecutables. Cada paso y su observación quedan visibles en la página Agente.
+- **Herramientas:** búsqueda web Brave, lectura de páginas HTTPS públicas, búsqueda y
+  streams de YouTube mediante instancias Piped, descarga directa, descarga de GGUF del
+  catálogo, GGUF por URL personalizada, generación de imagen con Pollinations, listar y
+  abrir apps, sesión de pantalla, lectura de GitHub, modelos locales y `finish`.
+- **Consentimiento en dos niveles:** al iniciar se muestra una vista previa de la sesión
+  (objetivo, herramientas de red, límites y consumo). Descargas, imágenes, apertura de
+  apps y sesiones de pantalla piden **otra confirmación por acción**. El botón Detener
+  cancela el bucle, las llamadas activas y cualquier confirmación pendiente.
+- **Muchos proveedores de texto:** OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI,
+  Together, Fireworks, Gemini, Anthropic y endpoint compatible. Las claves se guardan
+  cifradas y nunca se incluyen en prompts, argumentos ni registros.
+- **Pantalla general por app:** además del modo de búsqueda restringido, puedes elegir
+  una app instalada y revisar sus controles visibles. Se excluyen contraseñas, pagos,
+  permisos, instalación y paquetes sensibles; cada pulsación/escritura se confirma y la
+  sesión dura 3 minutos. No hay capturas, lectura en reposo ni segundo plano.
+- **Descarga de GGUF por URL:** HTTPS directa terminada en `.gguf`, hasta 2.5 GB, con
+  cabecera GGUF, tamaño y espacio verificados. **Sin SHA-256 fijado**: origen, licencia
+  y calidad no están verificados. Úsala solo con pesos que tengas derecho a descargar.
+
+YouTube/Piped y Pollinations son servicios externos gratuitos: pueden fallar, limitar
+peticiones o requerir PO token. No se garantiza disponibilidad ni calidad. Un stream de
+video sin audio necesita muxing externo; Sakura no descarga YouTube ni elude DRM.
+
+Configuración, alcances reales y pruebas: [docs/FEATURES-0.4.md](docs/FEATURES-0.4.md)
+(la 0.5 se documenta aquí y en la propia UI).
 
 ## Ampliación 0.4 — skills dentro de Sakura
 
@@ -67,11 +100,10 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 
 ## Integración en GitHub
 
-0.2 y 0.3 ya integradas por PR #3/#4. La ampliación actual se sube a
-`sakura-v0.4-skills`, base `35489f18edf90c8ed75753be158d0d1ca5a6d012`,
-mediante pull request, conservando el proyecto Android original. Consulta su PR/Actions
-para conocer el estado actual de integración y compilación; las verificaciones
-estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
+0.2 y 0.3 ya integradas por PR #3/#4. La ampliación 0.5 se sube a
+`sakura-v0.5-agent`, base `bae912f758e4f3e14d54dbb0f6a245db086c4bb7`, mediante pull request, conservando el proyecto Android original.
+Consulta su PR/Actions para conocer el estado actual de integración y compilación; las
+verificaciones estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
 
 ## Funciones implementadas en el código
 
@@ -80,13 +112,17 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 | Personalidad | Español, amabilidad, humor opcional y tono de compañera definidos en el prompt. El cumplimiento depende del modelo. |
 | Memoria | Notas explícitas de preferencia/proyecto/avance, cifradas con AES-GCM + Android Keystore; revisión y borrado individual o total. Hasta 100 notas; últimas 12 en contexto. |
 | Aprendizaje | Nivel principiante/intermedio/avanzado persistente. Adapta instrucciones al modelo; no reentrena pesos. |
-| IA local | Puente JNI a llama.cpp fijado a un commit; importar, cargar, cambiar, liberar y borrar GGUF. CPU, 2048 tokens de contexto, hasta 384 de salida. |
+| Agente | Hasta 10 pasos. El modelo propone JSON; Kotlin valida y ejecuta una herramienta por paso. Búsqueda web, lectura HTTPS, YouTube/Piped, GitHub, apps/modelos y `finish` bajo el consentimiento inicial. Descargas, imágenes, apps y pantalla piden confirmación aparte. Las observaciones se envían al proveedor de texto; las notas privadas nunca. Detener cancela llamadas y confirmaciones. |
+| IA local | Puente JNI a llama.cpp fijado a un commit; importar, cargar, cambiar, liberar y borrar GGUF. CPU, 2048 tokens de contexto, hasta 384 de salida. El agente puede usar el GGUF cargado o una API. |
 | Programación | Importar texto UTF-8 de hasta 64 KiB y pedir explicaciones/sugerencias para Python, Java, Kotlin, HTML y JavaScript. No ejecuta ni compila código. |
-| GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. |
-| Android | Listar/abrir apps visibles con confirmación. Pantalla: búsqueda accesible manual solo en apps permitidas, no control general. |
+| GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. El agente solo lee archivos de texto. |
+| Android | Listar/abrir apps visibles con confirmación. Pantalla: modo de búsqueda en apps permitidas y modo general por app instalada elegida; lectura solo al pulsar, confirmación por acción, 3 minutos, sin capturas ni segundo plano. |
+| Descargas | Imagen/video/audio por URL directa hasta 512 MiB; GGUF del catálogo con SHA-256; GGUF personalizado por URL `.gguf` hasta 2.5 GB con cabecera y espacio verificados, sin SHA. Guardado privado; no se ejecuta. |
+| YouTube | Búsqueda y listado de streams para reproducción vía Piped. Los enlaces pueden expirar o requerir PO token; no se descarga YouTube/HLS/DRM (las URLs de YouTube/Piped se rechazan en Descargas) y el video sin audio requiere muxing. |
+| Imágenes | Pollinations gratuito para generar una imagen 1024×1024. El prompt se envía a un servicio externo y se confirma antes; licencia y disponibilidad no garantizadas. |
 | APK | Revisar la APK seleccionada: paquete, versión, SDK, permisos, hashes de certificado y archivo, bibliotecas. Sin instalar, ejecutar ni extraer ZIP. No es antivirus ni verificación completa de firma. |
 | Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local. |
-| Privacidad | Red desautorizada al iniciar. Chat en RAM; memoria/credenciales cifradas. fal.ai recibe prompt visual confirmado; APIs de texto reciben contexto confirmado sin notas guardadas. No hay analítica añadida ni envío de pantalla. FLAG_SECURE. |
+| Privacidad | Red desautorizada al iniciar. Chat en RAM; memoria/credenciales cifradas. fal.ai/Pollinations reciben el prompt confirmado; las APIs de texto reciben el objetivo y las observaciones del agente, sin notas guardadas ni archivos. No hay analítica añadida ni envío de pantalla. FLAG_SECURE. |
 
 ## Requisitos y compatibilidad
 
@@ -192,16 +228,17 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 51 pruebas JVM de reglas/URLs/catálogo/planes/skills/protocolos/pantalla: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
-- Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
-  plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
+- 63 pruebas JVM de reglas/URLs/catálogo/planes/skills/protocolos/pantalla/agente: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- Todos los archivos Kotlin, incluidas las pantallas Compose: compilación estática con
+  API 36, dependencias AndroidX y plugin Compose 2.0.21 aprobada. No es un build Android
+  de Gradle; la APK debe compilarse en Actions o Android Studio.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:
   aprobado. No enlaza la biblioteca ni prueba instrucciones ARM64.
 - Scripts: `bash -n` y comprobación de parche: aprobados.
-- Build Android/ARM64 de 0.2/0.3 aprobado en Actions. Consulta CI del nuevo commit 0.4.
+- Build Android/ARM64 de 0.2/0.3 aprobado en Actions. Consulta CI del nuevo commit 0.5.
 - **Pendiente en dispositivo:** inferencia real, RAM pico/rendimiento, Keystore, voz,
   APK de prueba, apps, exportaciones, downloads completos y operaciones de GitHub,
-  mensajería, fal.ai, Brave, APIs de texto y Accesibilidad. No se enviaron mensajes
-  ni se hicieron peticiones pagadas para probar.
+  mensajería, fal.ai, Brave, APIs de texto, Piped/YouTube, Pollinations y Accesibilidad
+  general. No se enviaron mensajes ni se hicieron peticiones pagadas para probar.
 
 Consulta [docs/TESTING.md](docs/TESTING.md) antes de usarla con datos o repositorios importantes.
