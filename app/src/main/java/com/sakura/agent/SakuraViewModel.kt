@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -20,6 +21,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     private val store = PrivateStore(app)
     private val github = GitHubClient()
     val features = FeatureController(this, app, store)
+    val skills = SkillsController(this, app, store)
+    val agent = AgentController(this, app, store)
     private val executor = Executors.newSingleThreadExecutor()
     private val nativeWorker = executor.asCoroutineDispatcher()
     private var engine: NativeLlama? = null
@@ -71,6 +74,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             hasToken = withContext(Dispatchers.IO) { !store.read("github_token").isNullOrBlank() }
             models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
             features.initialize()
+            skills.initialize()
             status = "Todo local. Importa y carga un modelo GGUF para conversar."
         }
     }
@@ -78,8 +82,29 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun notice(text: String) { status = text }
 
     internal fun workFeature(label: String, block: suspend () -> Unit) = work(label, block)
+    internal val agentScope get() = viewModelScope
+    internal suspend fun <T> exclusive(label: String, block: suspend () -> T): T {
+        while (busy) delay(50)
+        busy = true; status = label
+        try { return block() } finally { busy = false; generating = false }
+    }
+    internal suspend fun generateAgent(system: String, history: List<ChatMessage>): String {
+        val chosen = skills.config
+        return if (chosen.provider == "Local") {
+            if (loadedModel == null) error("Carga un GGUF en Modelos o configura una API de texto en APIs.")
+            engine?.nativeResetCancellation()
+            generating = true
+            try { withContext(nativeWorker) { native().generate(system, history) } }
+            finally { generating = false }
+        } else skills.generateCloud(system, history)
+    }
     internal suspend fun refreshModels() { models = withContext(Dispatchers.IO) { LocalFiles.models(app) } }
     internal fun invalidateRepo() { repoFile = null; pendingEdit = null }
+    internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
+        check(messages == previous && draft == original) { "El borrador cambió; respuesta no insertada." }
+        messages = previous + ChatMessage(original.trim(),false) + ChatMessage(answer,true)
+        draft = ""
+    }
 
     fun proposePlan(goal: String) {
         if (loadedModel == null) { notice("Carga un GGUF para planificar localmente. También puedes editar un plan JSON manual."); return }
@@ -108,9 +133,9 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setInternet(allowed: Boolean) {
-        if (busy) return
+        if (busy && allowed) return
         internetAllowed = allowed
-        if (!allowed) { pendingEdit = null; features.revokeNetwork() }
+        if (!allowed) { pendingEdit = null; features.revokeNetwork(); features.close(); skills.cancel() }
         status = if (allowed) "GitHub, mensajería, descargas y generación nube pueden usar Internet con tus botones y confirmaciones." else "Red desautorizada en Sakura. Los servicios externos de Android tienen su propia configuración."
     }
 
@@ -177,6 +202,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun send() {
         if (busy || draft.isBlank()) return
+        if (skills.config.provider != "Local") { skills.prepareChat(); return }
         if (loadedModel == null) { status = "Importa y carga un GGUF en Modelos. No hay respuestas simuladas."; return }
         val text = draft.trim()
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
@@ -268,7 +294,10 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     override fun onCleared() {
+        agent.close()
         features.close()
+        skills.close()
+        SakuraAccessibilityService.connected?.stopSession()
         engine?.nativeCancel()
         executor.execute { engine?.nativeUnload() }
         executor.shutdown()

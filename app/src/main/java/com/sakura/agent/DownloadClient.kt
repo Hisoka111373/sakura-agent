@@ -38,18 +38,24 @@ class DownloadClient {
 
     fun download(context: Context, url: String, kind: String, model: CatalogModel? = null,
         progress: (Long, Long) -> Unit): DownloadResult {
-        require(kind in listOf("Imagen", "Video", "Modelo"))
-        require(kind != "Modelo" || model != null && url == model.url) { "Los modelos se descargan desde el catálogo verificado." }
-        val targetDir = if (model?.category == "Chat") LocalFiles.modelDir(context) else dir(context)
+        require(kind in listOf("Imagen", "Video", "Audio", "Modelo"))
+        require(kind != "Modelo" || model == null || url == model.url) { "El modelo no coincide con la URL del catálogo verificado." }
+        val chatModel = kind == "Modelo" && (model == null || model.category == "Chat")
+        val targetDir = if (chatModel) LocalFiles.modelDir(context) else dir(context)
         val reserve = 256L * 1024 * 1024
         val cap = if (kind == "Modelo") {
-            if (model?.category == "Chat") AgentPolicy.MAX_MODEL_BYTES else NetworkPolicy.MAX_VISUAL_MODEL_BYTES
+            if (chatModel) AgentPolicy.MAX_MODEL_BYTES else NetworkPolicy.MAX_VISUAL_MODEL_BYTES
         } else NetworkPolicy.MAX_MEDIA_BYTES
         val limit = minOf(cap, targetDir.usableSpace - reserve)
         require(limit > 0 && (model == null || model.bytes <= limit)) { "Espacio insuficiente o archivo por encima del límite." }
         val prefix = UUID.randomUUID().toString() + "_"
         val temporary = File(targetDir, prefix + "download.part")
-        var uri = NetworkPolicy.https(url)
+        val customModelName = if (kind == "Modelo" && model == null) {
+            val raw = NetworkPolicy.https(url).path.orEmpty().substringAfterLast('/')
+            require(raw.endsWith(".gguf", true) && raw.length <= 100) { "La URL personalizada debe terminar en .gguf." }
+            raw.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+        } else null
+        var uri = NetworkPolicy.directDownload(url)
         val started = System.nanoTime()
         try {
             var redirects = 0
@@ -64,7 +70,7 @@ class DownloadClient {
                     if (code in listOf(301,302,303,307,308)) {
                         require(redirects++ < 5) { "Demasiadas redirecciones." }
                         val location = connection.header("Location") ?: error("Redirección sin destino.")
-                        uri = NetworkPolicy.https(uri.resolve(location).toString())
+                        uri = NetworkPolicy.directDownload(uri.resolve(location).toString())
                         return@use
                     }
                     require(code == 200) { "Descarga HTTP $code. No se ha guardado el archivo." }
@@ -97,6 +103,10 @@ class DownloadClient {
                         require(total == model.bytes && digest == model.sha256) { "SHA-256 o tamaño del modelo incorrecto; archivo descartado." }
                         if (model.category == "Chat") require(AgentPolicy.validGguf(temporary.inputStream().use { it.readNBytes(8) })) { "Cabecera GGUF inválida." }
                         name = model.file; extension = model.file.substringAfterLast('.')
+                    } else if (kind == "Modelo") {
+                        require(AgentPolicy.validGguf(temporary.inputStream().use { it.readNBytes(8) })) { "Cabecera GGUF inválida." }
+                        name = customModelName ?: error("Nombre de GGUF inválido.")
+                        extension = "gguf"
                     } else {
                         extension = NetworkPolicy.mediaExtension(temporary.inputStream().use { it.readNBytes(16) }, kind)
                             ?: error("No es un formato de $kind admitido. No se descargan páginas HTML ni listas de reproducción.")

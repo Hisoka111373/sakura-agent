@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 internal fun DownloadsPage(vm: SakuraViewModel, export: (DownloadedFile) -> Unit) {
     val context = LocalContext.current
     var url by remember { mutableStateOf("") }
+    var modelUrl by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("Imagen") }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Info("Catálogo verificado por tamaño y SHA-256, sin pesos incluidos. Chat: GGUF para llama.cpp. Imagen/video: checkpoints para evaluación externa, NO generación local en Sakura. Consulta licencia antes de descargar; 8 GB de RAM no garantiza que puedan ejecutarse.") }
@@ -43,9 +44,16 @@ internal fun DownloadsPage(vm: SakuraViewModel, export: (DownloadedFile) -> Unit
         }
         item { HorizontalDivider() }
         item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            Text("Descargar imagen o video por URL",fontWeight=FontWeight.Bold)
+            Text("Añadir un GGUF por URL personalizada",fontWeight=FontWeight.Bold)
+            Info("Enlace HTTPS directo a un archivo .gguf público, por ejemplo de Hugging Face. Límite 2.5 GB. Se verifica la cabecera GGUF y el espacio, pero NO hay SHA-256 fijado: el origen y la licencia no están verificados. Confirma que tienes derecho a usar los pesos. El modelo queda importado; cargarlo requiere otra confirmación.")
+            Field("URL directa del GGUF",modelUrl,{modelUrl=it.take(4096)},!vm.busy)
+            Button(enabled=!vm.busy && vm.internetAllowed && modelUrl.isNotBlank(),onClick={vm.features.prepareDownload(modelUrl.trim(),"Modelo")}) { Text("Revisar descarga del GGUF…") }
+        } }
+        item { HorizontalDivider() }
+        item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("Descargar imagen, audio o video por URL",fontWeight=FontWeight.Bold)
             Info("Solo enlaces HTTPS directos a archivos públicos que tengas permiso de descargar. Sin buscar automáticamente, entrar a cuentas, extraer de YouTube, eludir DRM ni descargar listas HLS. Máximo 512 MiB por archivo; datos privados en Sakura hasta que exportes.")
-            Row { listOf("Imagen","Video").forEach { choice -> FilterChip(kind==choice,{kind=choice},label={Text(choice)},modifier=Modifier.padding(end=6.dp)) } }
+            Row { listOf("Imagen","Video","Audio").forEach { choice -> FilterChip(kind==choice,{kind=choice},label={Text(choice)},modifier=Modifier.padding(end=6.dp)) } }
             Field("URL directa HTTPS",url,{url=it.take(4096)},!vm.busy)
             Button(enabled=!vm.busy && vm.internetAllowed && url.isNotBlank(),onClick={vm.features.prepareDownload(url.trim(),kind)}) { Text("Revisar descarga…") }
         } }
@@ -156,7 +164,12 @@ internal fun ServiceCredentials(vm: SakuraViewModel) {
     var value by remember { mutableStateOf("") }
     Text("Credenciales de servicios",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
     Info("Solo se guardan si las introduces tú. Cifradas con Keystore; no se incluyen en código, planes, prompts ni descargas. Telegram y Meta envían mensajes al proveedor. fal.ai factura en tu cuenta. Configuración guardada NO significa conexión probada.")
-    val labels = mapOf("telegram_token" to "Token bot Telegram", "whatsapp_token" to "Token Meta WhatsApp", "whatsapp_phone_id" to "Phone Number ID Meta", "fal_key" to "Clave fal.ai")
+    val labels = mapOf("telegram_token" to "Token bot Telegram", "whatsapp_token" to "Token Meta WhatsApp", "whatsapp_phone_id" to "Phone Number ID Meta", "fal_key" to "Clave fal.ai",
+        "openai_key" to "Clave OpenAI", "openrouter_key" to "Clave OpenRouter", "groq_key" to "Clave Groq",
+        "deepseek_key" to "Clave DeepSeek", "mistral_key" to "Clave Mistral", "xai_key" to "Clave xAI",
+        "together_key" to "Clave Together", "fireworks_key" to "Clave Fireworks",
+        "compatible_key" to "Clave endpoint compatible", "gemini_key" to "Clave Gemini",
+        "anthropic_key" to "Clave Anthropic", "brave_key" to "Clave Brave Search")
     Row(Modifier.horizontalScroll(rememberScrollState())) { labels.forEach { (id,label) ->
         FilterChip(key==id,{key=id;value=""},label={Text(label)},modifier=Modifier.padding(end=6.dp))
     } }
