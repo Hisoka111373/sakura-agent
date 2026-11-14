@@ -5,12 +5,13 @@
 La validación realizada es estática/JVM, no una certificación funcional. No se ha
 usado un teléfono ni un modelo real. La versión 0.2 compiló APK ARM64 en Actions
 (run 43304984898) y se integró mediante PR #3. 0.3 también aprobó CI run 43551453495
-y se integró por PR #4. Para 0.4 revisa su propio CI; no basta un build anterior.
-Pruebas adicionales en [FEATURES-0.3.md](FEATURES-0.3.md) y [FEATURES-0.4.md](FEATURES-0.4.md).
+y se integró por PR #4. 0.4 aprobó CI43553143121 y se integró por PR #5.
+Para 0.5 revisa su propio CI; no basta un build anterior. Pruebas adicionales en
+[FEATURES-0.5.md](FEATURES-0.5.md), además de los documentos 0.3/0.4.
 
 Comprobaciones realizadas:
 
-1. `scripts/check-policy.sh`: 51 pruebas JUnit (reglas, red, catálogo, planes, skills, protocolos y pantalla), todas aprobadas.
+1. `scripts/check-policy.sh`: 64 pruebas JUnit (reglas, red, catálogo, planes, skills, routing, protocolos y pantalla), todas aprobadas.
 2. Kotlin 2.0.21 + plugin Compose 2.0.21: todos los archivos `.kt` de producción
    compilados a un JAR de comprobación, con android.jar API 35 y dependencias AndroidX.
    El JAR no se entrega como aplicación y no puede instalarse en Android.
@@ -37,7 +38,8 @@ Esos aspectos y todas las integraciones nuevas requieren pruebas en dispositivo.
 
 - [ ] Compilar `testDebugUnitTest` y `assembleDebug` con la revisión nativa fijada.
 - [ ] Instalar y abrir sin fallos JNI; comprobar colores originales y barras del sistema.
-- [ ] Recorrer las catorce pestañas con teclado, fuente grande y pantalla pequeña.
+- [ ] Recorrer las quince pestañas con teclado, fuente grande y pantalla pequeña; Jardín/hero/avatar y filtros de skills sin red.
+- [ ] Favoritos persisten; elegir skill no borra borrador; detección automática/manual se muestra y entra en prompt sin ejecutar tools.
 - [ ] Rotar durante carga/generación: no iniciar inferencias duplicadas.
 - [ ] Confirmar que no se permiten capturas de pantalla ni vista reciente con contenido sensible.
 

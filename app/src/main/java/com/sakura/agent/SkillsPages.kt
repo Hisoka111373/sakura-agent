@@ -18,11 +18,36 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun SkillsPage(vm: SakuraViewModel) {
-    LazyColumn(verticalArrangement=Arrangement.spacedBy(9.dp)) {
-        item { Info("Skills dentro de Sakura: instrucciones de texto y accesos a herramientas reales. El modelo no ejecuta acciones. Las habilidades de texto requieren GGUF o API configurada; no incluyen ejecución de código ni generación visual local.") }
-        items(Skills.entries) { skill ->
-            OutlinedButton(enabled=!vm.busy,onClick={vm.skills.use(skill)},modifier=Modifier.fillMaxWidth()) { Text("${skill.name} → ${skill.page}") }
+    var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Todas") }
+    var onlyFavorites by remember { mutableStateOf(false) }
+    val categories=listOf("Todas")+Skills.entries.map { it.category }.distinct()
+    val filtered=Skills.entries.filter { skill -> (category=="Todas" || skill.category==category) &&
+        (!onlyFavorites || skill.name in vm.skills.favorites) &&
+        (query.isBlank() || Skills.normalized(skill.name+" "+skill.instruction+" "+skill.category).contains(Skills.normalized(query))) }
+    LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        item { SakuraHero("Tu biblioteca", "${Skills.entries.size} skills. Una idea, muchas posibilidades.",true) }
+        item { Field("Buscar skill, lenguaje o tema",query,{query=it.take(100)},true) }
+        item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+            categories.forEach { name -> FilterChip(category==name,{category=name},label={Text(name)}) }
+        } }
+        item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+            FilterChip(onlyFavorites,{onlyFavorites=!onlyFavorites},label={Text("Favoritos (${vm.skills.favorites.size})")})
+            TextButton(enabled=!vm.busy,onClick={vm.skills.automatic();vm.page="Chat"}) { Text("Selección automática") }
+        } }
+        item { Text("${filtered.size} resultados · texto guiado, no ejecución de código ni permisos automáticos") }
+        items(filtered,key={it.name}) { skill ->
+            Card { Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                Text(skill.category,color=MaterialTheme.colorScheme.secondary)
+                Text(skill.name,style=MaterialTheme.typography.titleMedium)
+                Text(skill.instruction.ifBlank { "Abre ${skill.page}. Usa los botones, revisiones y permisos de esa herramienta." },style=MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                    TextButton(enabled=!vm.busy,onClick={vm.skills.favorite(skill)}) { Text(if(skill.name in vm.skills.favorites) "Quitar favorito" else "Guardar favorito") }
+                    Button(enabled=!vm.busy,onClick={vm.skills.use(skill)}) { Text(if(skill.page=="Chat") "Elegir skill" else "Abrir") }
+                }
+            } }
         }
+        if(filtered.isEmpty()) item { Info("No hay coincidencias con estos filtros. Cambia categoría o búsqueda.") }
     }
 }
 

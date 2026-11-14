@@ -41,14 +41,14 @@ class TextSearchClient {
             throw java.io.IOException(if(e is IllegalArgumentException) e.message?.take(160) else "Fallo de red/JSON o cancelación; resultado no confirmado. Revisa consumo antes de repetir.")
         } finally { active=null }
     }
-    fun generate(config: TextConfig, key: String, history: List<ChatMessage>): String {
+    fun generate(config: TextConfig, key: String, history: List<ChatMessage>, system: String = TextProtocol.system): String {
         require(key.isNotBlank() && NetworkPolicy.secret(key)) { "Configura la clave del proveedor en Privacidad." }
         val headers=when(config.provider) {
             "Gemini" -> mapOf("x-goog-api-key" to key)
             "Anthropic" -> mapOf("x-api-key" to key,"anthropic-version" to "2023-06-01")
             else -> mapOf("Authorization" to "Bearer $key")
         }
-        return TextProtocol.answer(config.provider,request(config.url(),headers,TextProtocol.payload(config,history)))
+        return TextProtocol.answer(config.provider,request(config.url(),headers,TextProtocol.payload(config,history,system)))
     }
     fun search(key: String, query: String): List<SearchResult> {
         require(key.isNotBlank() && NetworkPolicy.secret(key)) { "Configura brave_key en Privacidad." }

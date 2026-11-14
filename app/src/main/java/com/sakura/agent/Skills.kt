@@ -3,7 +3,8 @@ package com.sakura.agent
 import java.net.URLEncoder
 import java.text.Normalizer
 
-data class SakuraSkill(val name: String, val page: String, val instruction: String = "")
+data class SakuraSkill(val name: String, val page: String, val instruction: String = "",
+    val category: String = if(page == "Chat") "General" else "Herramientas", val cues: List<String> = emptyList())
 data class SearchTask(val kind: String, val query: String)
 
 /** Curated capabilities inside the Android app; not executable model tools. */
@@ -24,7 +25,26 @@ object Skills {
         SakuraSkill("Memoria privada", "Memoria"), SakuraSkill("Modelos locales", "Modelos"),
         SakuraSkill("Imagen / video en nube", "Crear"), SakuraSkill("Mensajes revisados", "Mensajes"),
         SakuraSkill("Proveedores de texto", "APIs")
-    )
+    ) + AdvancedSkills.entries
+    private val matchers by lazy { entries.filter { it.page == "Chat" && it.cues.isNotEmpty() }.associateWith { skill ->
+        skill.cues.map { Regex("(?<![a-z0-9])" + Regex.escape(normalized(it)) + "(?![a-z0-9])") }
+    } }
+    private val intents = linkedMapOf("Traducción" to "traduce|traducir|translate", "Resumen fiel" to "resume|resumir|resumen",
+        "Refactorización" to "refactoriza|refactorizar|refactor", "Depuración guiada" to "depura|depurar|debug",
+        "Pruebas unitarias" to "test|pruebas unitarias|pytest|junit", "Comparar opciones" to "compara|comparar")
+    fun textSkill(input: String, manual: String? = null): SakuraSkill? {
+        if(manual != null) return entries.firstOrNull { it.name == manual && it.page == "Chat" }
+        if(input.isBlank()) return null
+        val text = normalized(input.take(8000))
+        intents.entries.firstOrNull { (_, cues) -> Regex("(?<![a-z0-9])($cues)(?![a-z0-9])").containsMatchIn(text.take(250)) }?.let {
+            return entries.first { skill -> skill.name == it.key }
+        }
+        return matchers.map { (skill, patterns) ->
+            skill to patterns.count { it.containsMatchIn(text) }
+        }.filter { it.second > 0 }.maxByOrNull { it.second }?.first
+    }
+    fun guidance(skill: SakuraSkill?): String = if(skill == null) "" else
+        "\nEspecialidad seleccionada: ${skill.name}. ${skill.instruction.take(1000)}\nEstas instrucciones solo guían texto: no habilitan red, ejecución de código ni herramientas; reconoce información faltante y resultados no verificados."
     fun normalized(value: String) = Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
         .replace(Regex("\\p{M}"), "")
     fun task(input: String): SearchTask {

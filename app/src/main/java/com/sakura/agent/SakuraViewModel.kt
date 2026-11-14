@@ -30,7 +30,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         error("Motor JNI no disponible. Compila con llama.cpp y usa un Android ARM64.")
     }
 
-    var page by mutableStateOf("Chat")
+    var page by mutableStateOf("Jardín")
     var draft by mutableStateOf("")
     var status by mutableStateOf("")
         private set
@@ -190,7 +190,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
         val previous = messages
         val history = previous.takeLast(6) + ChatMessage(text, false)
-        val system = AgentPolicy.systemPrompt(level, humor, memories)
+        val skill = skills.markSelected(text)
+        val system = AgentPolicy.systemPrompt(level, humor, memories) + Skills.guidance(skill)
         draft = ""; messages = previous + ChatMessage(text, false)
         work("Sakura está pensando localmente…") {
             engine?.nativeResetCancellation()

@@ -4,9 +4,26 @@ Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno ro
 
 **La APK no está probada en un teléfono.** La versión 0.2 compiló en GitHub Actions
 y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
-La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. Para 0.4
-consulta su propio pull request/CI: las pruebas en dispositivo siguen pendientes.
+La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. La 0.4 pasó
+CI run43553143121 y se integró por PR #5. Para 0.5 consulta su propio PR/CI:
+las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
+
+## Ampliación 0.5 — Jardín Sakura y 93 skills
+
+- **Jardín**: portada con mascota anime original y flores de cerezo, avatar y
+  detalles florales en la interfaz. Tres WebP empaquetados (175 KiB aprox.), sin red.
+- **93 skills**: programación e ingeniería, aprendizaje, productividad,
+  investigación, datos, creatividad y vida diaria. Biblioteca con buscador,
+  categorías, descripciones y favoritos cifrados.
+- **Selección automática de texto** por reglas locales, visible en Chat;
+  se puede cambiar manualmente. Una instrucción breve guía al modelo GGUF/API.
+  Elegir skill no envía ni borra el borrador; ninguna skill ejecuta herramientas.
+- **Cloud con revisión**: JSON incluye la guía elegida; sigue requiriendo tu
+  confirmación exacta y no incluye notas guardadas ni pantalla.
+
+Las skills no ejecutan código/tests/shell ni garantizan especialización perfecta.
+Ver [docs/FEATURES-0.5.md](docs/FEATURES-0.5.md) y [arte](docs/ARTWORK.md).
 
 ## Ampliación 0.4 — skills dentro de Sakura
 
@@ -67,8 +84,8 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 
 ## Integración en GitHub
 
-0.2 y 0.3 ya integradas por PR #3/#4. La ampliación actual se sube a
-`sakura-v0.4-skills`, base `35489f18edf90c8ed75753be158d0d1ca5a6d012`,
+0.2, 0.3 y 0.4 ya integradas por PR #3/#4/#5. La ampliación actual se sube a
+`sakura-v0.5-garden`, base `0517e04c7890625f65d33bc880c717d0db0b61fe`,
 mediante pull request, conservando el proyecto Android original. Consulta su PR/Actions
 para conocer el estado actual de integración y compilación; las verificaciones
 estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
@@ -192,16 +209,17 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 51 pruebas JVM de reglas/URLs/catálogo/planes/skills/protocolos/pantalla: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- 64 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:
   aprobado. No enlaza la biblioteca ni prueba instrucciones ARM64.
 - Scripts: `bash -n` y comprobación de parche: aprobados.
-- Build Android/ARM64 de 0.2/0.3 aprobado en Actions. Consulta CI del nuevo commit 0.4.
+- Build Android/ARM64 de 0.2/0.3/0.4 aprobado en Actions. Consulta CI del nuevo commit 0.5.
 - **Pendiente en dispositivo:** inferencia real, RAM pico/rendimiento, Keystore, voz,
   APK de prueba, apps, exportaciones, downloads completos y operaciones de GitHub,
   mensajería, fal.ai, Brave, APIs de texto y Accesibilidad. No se enviaron mensajes
-  ni se hicieron peticiones pagadas para probar.
+  ni se hicieron peticiones pagadas para probar sus servicios. Solo se generó el
+  dibujo decorativo solicitado para la interfaz, fuera del runtime Android.
 
 Consulta [docs/TESTING.md](docs/TESTING.md) antes de usarla con datos o repositorios importantes.

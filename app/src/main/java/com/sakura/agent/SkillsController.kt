@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONArray
 
 class SkillsController(private val vm: SakuraViewModel, private val context: Context, private val store: PrivateStore) {
     private val client=TextSearchClient()
@@ -16,8 +17,25 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
     var results by mutableStateOf(emptyList<SearchResult>()); private set
     var query by mutableStateOf("")
     var kind by mutableStateOf("YouTube")
+    var manualSkill by mutableStateOf<String?>(null); private set
+    var activeSkill by mutableStateOf("General"); private set
+    var favorites by mutableStateOf(emptySet<String>()); private set
+    fun selected(text: String = vm.draft) = Skills.textSkill(text,manualSkill)
+    fun markSelected(text: String): SakuraSkill? = selected(text).also { activeSkill=it?.name ?: "General" }
+    fun automatic() { if(!vm.busy) { manualSkill=null; vm.notice("Selección automática por reglas locales; no activa herramientas.") } }
+    fun favorite(skill: SakuraSkill) = vm.workFeature("Guardando favoritos cifrados…") {
+        require(skill in Skills.entries)
+        val next=if(skill.name in favorites) favorites-skill.name else favorites+skill.name
+        withContext(Dispatchers.IO) { store.write("skill_favorites",JSONArray(next.toList().sorted()).toString()) }
+        favorites=next
+    }
     suspend fun initialize() {
         withContext(Dispatchers.IO) {
+            store.read("skill_favorites")?.let {
+                try { val names=JSONArray(it); favorites=(0 until minOf(names.length(),150)).map { i -> names.getString(i) }
+                    .filter { name -> Skills.entries.any { skill -> skill.name==name } }.toSet() }
+                catch (_:Exception) { favorites=emptySet() }
+            }
             store.read("text_config")?.let { saved ->
                 try { val row=JSONObject(saved); val next=TextConfig(row.getString("provider"),row.getString("model"),row.getString("endpoint"))
                     if(next.provider!="Local") next.url(); config=next
@@ -34,8 +52,9 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
     }
     fun use(skill: SakuraSkill) {
         if(vm.busy) return
+        if(skill !in Skills.entries) return
         vm.page=skill.page
-        if(skill.instruction.isNotEmpty()) vm.draft=skill.instruction+"\n\n"
+        if(skill.page=="Chat") { manualSkill=skill.name; activeSkill=skill.name; vm.notice("Skill ${skill.name} elegida. Escribe tu petición; no se envió nada ni se borró tu borrador.") }
     }
     fun route(text: String) {
         try { val task=Skills.task(text); query=task.query; kind=task.kind; vm.page="Buscar" }
@@ -45,11 +64,13 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         if(vm.busy || vm.draft.isBlank()) return
         try {
             val chosen=config; val original=vm.draft; val previous=vm.messages
+            val manual=manualSkill; val skill=markSelected(original)
+            val system=TextProtocol.system+Skills.guidance(skill)
             val history=previous.takeLast(6)+ChatMessage(original.trim(),false)
-            val payload=TextProtocol.payload(chosen,history)
+            val payload=TextProtocol.payload(chosen,history,system)
             vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model}\n\nEnvía hasta tres parejas anteriores y tu borrador. NO recuerdos privados, archivos ni pantalla. Puede tener coste; 768 tokens máximos de salida NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
-                check(vm.draft==original && vm.messages==previous && config==chosen) { "El chat/configuración cambió: revisa una nueva solicitud." }
-                val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.generate(chosen,store.read(chosen.key)?:"",history) }
+                check(vm.draft==original && vm.messages==previous && config==chosen && manualSkill==manual) { "El chat/configuración/skill cambió: revisa una nueva solicitud." }
+                val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.generate(chosen,store.read(chosen.key)?:"",history,system) }
                 check(vm.internetAllowed) { "Red desautorizada: respuesta no insertada." }
                 vm.receiveCloud(previous,original,answer)
                 "Respuesta recibida de ${chosen.provider}. No se ejecutó ninguna acción de su texto."
