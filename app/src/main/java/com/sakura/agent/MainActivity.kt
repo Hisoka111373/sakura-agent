@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -30,6 +30,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -89,16 +91,16 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(Modifier.size(44.dp), shape = CircleShape, color = Pink.copy(alpha = 0.18f)) {
-                    Icon(Icons.Default.Favorite, null, tint = Pink, modifier = Modifier.padding(12.dp))
+                    Image(painterResource(R.drawable.sakura_avatar),"Mascota Sakura",contentScale=ContentScale.Crop)
                 }
                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
                     Text("SAKURA AGENT", color = Pink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                    Text(if (vm.loadedModel != null) "IA local · ${vm.level}" else "Sin modelo cargado", color = Aqua, fontSize = 12.sp)
+                    Text(if(vm.skills.config.provider != "Local") "API opcional · ${vm.skills.config.provider}" else if (vm.loadedModel != null) "IA local · ${vm.level}" else "Tu espacio para aprender y crear", color = Aqua, fontSize = 12.sp)
                 }
                 TextButton(onClick = { voice.stop(); vm.notice("Voz detenida.") }) { Text("Silencio") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Chat", "Skills", "Buscar", "Pantalla", "APIs", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
+                listOf("Jardín", "Chat", "Skills", "Buscar", "Pantalla", "APIs", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
@@ -106,6 +108,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
             Text(vm.status, color = Aqua, fontSize = 12.sp, modifier = Modifier.padding(vertical = 7.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (vm.page) {
+                    "Jardín" -> GardenPage(vm)
                     "Chat" -> ChatPage(vm, { message -> voice.speak(message, vm.internetAllowed) }, {
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                             voice.dictate(vm.internetAllowed)
@@ -178,8 +181,14 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(vm.messages.asReversed()) { message -> MessageBubble(message) { speak(message.text) } }
             if (vm.messages.isEmpty()) item {
-                Info("¡Hola! Soy Sakura 🌸 Importa un modelo GGUF en Modelos y lo pensamos juntas, paso a paso. Las herramientas solo se activan cuando tú las pulsas.")
+                SakuraHero("Hola, soy Sakura.","Cuéntame tu idea. GGUF local o API elegida; las acciones siempre bajo tu control.",true)
             }
+        }
+        val detected=vm.skills.selected()
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
+            Text("${if(vm.draft.isBlank() && vm.skills.manualSkill==null) "Última skill" else "Skill prevista"}: ${detected?.name ?: if(vm.draft.isBlank()) vm.skills.activeSkill else "General"} · ${if(vm.skills.manualSkill==null) "automática" else "manual"}",color=Aqua,fontSize=12.sp)
+            TextButton(enabled=!vm.busy,onClick=vm.skills::automatic) { Text("Auto") }
+            TextButton(enabled=!vm.busy,onClick={vm.page="Skills"}) { Text("Cambiar") }
         }
         if (vm.generating) TextButton(onClick = vm::cancelGeneration) { Text("Detener generación") }
         if (vm.busy && vm.skills.config.provider != "Local") TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición nube") }
