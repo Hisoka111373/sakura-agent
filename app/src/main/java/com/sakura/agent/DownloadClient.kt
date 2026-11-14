@@ -38,7 +38,7 @@ class DownloadClient {
 
     fun download(context: Context, url: String, kind: String, model: CatalogModel? = null,
         progress: (Long, Long) -> Unit): DownloadResult {
-        require(kind in listOf("Imagen", "Video", "Modelo"))
+        require(kind in listOf("Imagen", "Video", "Audio", "Modelo"))
         require(kind != "Modelo" || model != null && url == model.url) { "Los modelos se descargan desde el catálogo verificado." }
         val targetDir = if (model?.category == "Chat") LocalFiles.modelDir(context) else dir(context)
         val reserve = 256L * 1024 * 1024
