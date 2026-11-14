@@ -4,9 +4,27 @@ Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno ro
 
 **La APK no está probada en un teléfono.** La versión 0.2 compiló en GitHub Actions
 y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
-Para la ampliación 0.3 consulta su pull request y Actions: no asumas que un build
-anterior verifica las nuevas funciones. Las pruebas en dispositivo siguen pendientes.
-El chat ya no utiliza respuestas predefinidas: necesita importar y cargar un modelo real.
+La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. Para 0.4
+consulta su propio pull request/CI: las pruebas en dispositivo siguen pendientes.
+El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
+
+## Ampliación 0.4 — skills dentro de Sakura
+
+- **21 skills** de texto y accesos a herramientas, sin ejecución autónoma del modelo.
+- **Buscar**: prepara peticiones como «busca una canción de Maná» y revisa abrir
+  YouTube/navegador/Google Play; búsqueda interna opcional con Brave Search API.
+- **APIs de texto**: OpenAI, endpoint Chat Completions compatible HTTPS configurable,
+  Gemini y Anthropic. Claves cifradas en Privacidad; proveedor/modelo en APIs.
+  Cada petición muestra JSON completo sin clave, contexto exacto y posible coste.
+  No envía recuerdos guardados, archivos ni pantalla. Local sigue siendo el defecto.
+- **Pantalla**: servicio de Accesibilidad opcional y activado manualmente. Sesiones
+  de búsqueda de hasta 3 minutos en YouTube/Chrome/Firefox/Play Store, DETENER fijo,
+  lectura puntual y confirmación por pulsación/escritura. No cualquier APK ni UI;
+  sin mensajes, pagos, login, permisos, instalación, screenshots ni gestos arbitrarios.
+- **Audio autorizado**: MP3/WAV/FLAC/OGG por enlace público directo, además de
+  imagen/video. No extrae canciones/videos de YouTube ni evade DRM.
+
+Configuración, alcances reales y pruebas: [docs/FEATURES-0.4.md](docs/FEATURES-0.4.md).
 
 ## Ampliación 0.3 — herramientas con revisión humana
 
@@ -49,9 +67,9 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 
 ## Integración en GitHub
 
-Los cambios se suben a `sakura-v0.2-integration` para integrarlos en `main` mediante
-pull request, conservando el proyecto Android original. La base es
-`5fa5c15b772f6fa1890371e27b5803fb07cfeba7`. Consulta el pull request y Actions
+0.2 y 0.3 ya integradas por PR #3/#4. La ampliación actual se sube a
+`sakura-v0.4-skills`, base `35489f18edf90c8ed75753be158d0d1ca5a6d012`,
+mediante pull request, conservando el proyecto Android original. Consulta su PR/Actions
 para conocer el estado actual de integración y compilación; las verificaciones
 estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
 
@@ -65,10 +83,10 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 | IA local | Puente JNI a llama.cpp fijado a un commit; importar, cargar, cambiar, liberar y borrar GGUF. CPU, 2048 tokens de contexto, hasta 384 de salida. |
 | Programación | Importar texto UTF-8 de hasta 64 KiB y pedir explicaciones/sugerencias para Python, Java, Kotlin, HTML y JavaScript. No ejecuta ni compila código. |
 | GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. |
-| Android | Listar actividades de inicio visibles y abrir una app elegida con confirmación. No controla su interfaz. |
+| Android | Listar/abrir apps visibles con confirmación. Pantalla: búsqueda accesible manual solo en apps permitidas, no control general. |
 | APK | Revisar la APK seleccionada: paquete, versión, SDK, permisos, hashes de certificado y archivo, bibliotecas. Sin instalar, ejecutar ni extraer ZIP. No es antivirus ni verificación completa de firma. |
 | Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local. |
-| Privacidad | Red desautorizada al iniciar cada sesión. Chat solo en RAM; memoria y credenciales cifradas. fal.ai solo recibe el prompt visual confirmado; no hay chat remoto ni analítica añadida. Capturas bloqueadas mediante FLAG_SECURE. |
+| Privacidad | Red desautorizada al iniciar. Chat en RAM; memoria/credenciales cifradas. fal.ai recibe prompt visual confirmado; APIs de texto reciben contexto confirmado sin notas guardadas. No hay analítica añadida ni envío de pantalla. FLAG_SECURE. |
 
 ## Requisitos y compatibilidad
 
@@ -139,7 +157,8 @@ Se eliminó la copia redundante en `github/workflows/`, que GitHub no ejecuta.
 3. Memoria → guarda notas concretas. No se extraen recuerdos del chat automáticamente.
 4. Chat → escribe un mensaje corto. Micrófono pide permiso; revisa el dictado antes de enviar.
 5. Herramientas → selecciona archivos o apps. No se pide acceso general al almacenamiento,
-   accesibilidad, instalación de paquetes, root ni QUERY_ALL_PACKAGES.
+   instalación de paquetes, root ni QUERY_ALL_PACKAGES. Accesibilidad opcional solo
+   si tú la activas manualmente para Pantalla; consulta la divulgación antes.
 
 ### GitHub y autorización
 
@@ -173,15 +192,16 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 30 pruebas JVM de reglas/URLs/catálogo/planes: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- 51 pruebas JVM de reglas/URLs/catálogo/planes/skills/protocolos/pantalla: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:
   aprobado. No enlaza la biblioteca ni prueba instrucciones ARM64.
 - Scripts: `bash -n` y comprobación de parche: aprobados.
-- Build Android/ARM64 de 0.2: aprobado en Actions. Consulta CI del nuevo commit para 0.3.
+- Build Android/ARM64 de 0.2/0.3 aprobado en Actions. Consulta CI del nuevo commit 0.4.
 - **Pendiente en dispositivo:** inferencia real, RAM pico/rendimiento, Keystore, voz,
   APK de prueba, apps, exportaciones, downloads completos y operaciones de GitHub,
-  mensajería y fal.ai. No se enviaron mensajes ni se gastaron créditos para probar.
+  mensajería, fal.ai, Brave, APIs de texto y Accesibilidad. No se enviaron mensajes
+  ni se hicieron peticiones pagadas para probar.
 
 Consulta [docs/TESTING.md](docs/TESTING.md) antes de usarla con datos o repositorios importantes.

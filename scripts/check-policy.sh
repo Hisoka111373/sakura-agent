@@ -13,7 +13,9 @@ trap 'rm -rf "$OUT"' EXIT
     "$ROOT/app/src/main/java/com/sakura/agent/NetworkPolicy.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/ModelCatalog.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/AgentPlanner.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/Skills.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/TextProtocol.kt" \
     "$ROOT/app/src/test/java/com/sakura/agent/"*Test.kt \
     -cp "$JUNIT_JAR:$JSON_JAR" -include-runtime -d "$OUT/tests.jar"
 java -cp "$OUT/tests.jar:$JUNIT_JAR:$HAMCREST_JAR:$JSON_JAR" org.junit.runner.JUnitCore \
-    com.sakura.agent.AgentPolicyTest com.sakura.agent.NetworkPolicyTest com.sakura.agent.AgentPlannerTest
+    com.sakura.agent.AgentPolicyTest com.sakura.agent.NetworkPolicyTest com.sakura.agent.AgentPlannerTest com.sakura.agent.SkillsTest

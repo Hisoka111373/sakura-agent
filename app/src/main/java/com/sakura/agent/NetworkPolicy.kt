@@ -7,7 +7,8 @@ import java.net.URI
 object NetworkPolicy {
     const val MAX_MEDIA_BYTES = 512L * 1024 * 1024
     const val MAX_VISUAL_MODEL_BYTES = 5_000_000_000L
-    val credentialKeys = setOf("telegram_token", "whatsapp_token", "whatsapp_phone_id", "fal_key")
+    val credentialKeys = setOf("telegram_token", "whatsapp_token", "whatsapp_phone_id", "fal_key",
+        "openai_key", "compatible_key", "gemini_key", "anthropic_key", "brave_key")
     fun https(value: String): URI {
         require(value.length in 10..4096 && value.none { it.code < 32 }) { "URL inválida." }
         val uri = URI(value)
@@ -47,6 +48,12 @@ object NetworkPolicy {
             if (header.size >= 3 && header[0] == (-1).toByte() && header[1] == (-40).toByte() && header[2] == (-1).toByte()) return "jpg"
             if (header.size >= 6 && header.take(6).toByteArray().toString(Charsets.US_ASCII) in listOf("GIF87a", "GIF89a")) return "gif"
             if (header.size >= 12 && header.copyOfRange(0,4).toString(Charsets.US_ASCII) == "RIFF" && header.copyOfRange(8,12).toString(Charsets.US_ASCII) == "WEBP") return "webp"
+        } else if (kind == "Audio") {
+            if (header.size >= 3 && header.copyOfRange(0,3).toString(Charsets.US_ASCII) == "ID3") return "mp3"
+            if (header.size >= 4 && header[0] == (-1).toByte() && (header[1].toInt() and 0xe6) == 0xe2) return "mp3"
+            if (header.size >= 4 && header.copyOfRange(0,4).toString(Charsets.US_ASCII) == "fLaC") return "flac"
+            if (header.size >= 4 && header.copyOfRange(0,4).toString(Charsets.US_ASCII) == "OggS") return "ogg"
+            if (header.size >= 12 && header.copyOfRange(0,4).toString(Charsets.US_ASCII) == "RIFF" && header.copyOfRange(8,12).toString(Charsets.US_ASCII) == "WAVE") return "wav"
         } else if (kind == "Video") {
             if (header.size >= 12 && header.copyOfRange(4,8).toString(Charsets.US_ASCII) == "ftyp") return "mp4"
             if (header.size >= 4 && header.take(4).toByteArray().contentEquals(byteArrayOf(26,69,-33,-93))) return "webm"
