@@ -44,7 +44,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
     fun revokeNetwork() { pending = null }
     fun close() { downloads.cancel() }
     fun dismiss() { pending = null }
-    private fun prepare(preview: String, network: Boolean = true, perform: suspend () -> String) {
+    internal fun prepare(preview: String, network: Boolean = true, perform: suspend () -> String) {
         if (vm.busy) return
         if (network && !vm.internetAllowed) { vm.notice("Autoriza Internet en Privacidad antes de preparar esta acción."); return }
         pending = FeatureConfirmation(preview,network,perform)
@@ -81,7 +81,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
 
     fun prepareDownload(url: String, kind: String, model: CatalogModel? = null) = validate {
         NetworkPolicy.https(url)
-        require(kind in listOf("Imagen","Video","Modelo") && (kind != "Modelo" || model in ModelCatalog.entries))
+        require(kind in listOf("Imagen","Video","Audio","Modelo") && (kind != "Modelo" || model in ModelCatalog.entries))
         val details = if (model != null) "${model.title}\n${model.bytes} bytes\nLicencia: ${model.license}\n${model.warning}\nSHA-256 esperado: ${model.sha256}" else "$kind · límite 512 MiB. URL directa, no página web, YouTube, HLS, DRM ni sesión privada."
         prepare("DESCARGAR por Internet:\n$url\n$details\nSe permiten hasta 5 redirecciones a HTTPS público sin cookies ni tokens. Guardado privado, no ejecutado. Puede consumir datos y varios GB de espacio. Confirma que tienes derecho a descargarlo.") {
             downloads.reset(); downloading = true; transfer = "Iniciando descarga…"

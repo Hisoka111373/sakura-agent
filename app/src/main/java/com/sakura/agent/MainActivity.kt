@@ -98,7 +98,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 TextButton(onClick = { voice.stop(); vm.notice("Voz detenida.") }) { Text("Silencio") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Chat", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
+                listOf("Chat", "Skills", "Buscar", "Pantalla", "APIs", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
@@ -115,6 +115,10 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                     "Modelos" -> ModelsPage(vm, { chooseModel.launch(arrayOf("*/*")) }, confirm)
                     "Herramientas" -> ToolsPage(vm, { chooseCode.launch(arrayOf("*/*")) }, { chooseApk.launch(arrayOf("*/*")) }, confirm)
                     "GitHub" -> GithubPage(vm)
+                    "Skills" -> SkillsPage(vm)
+                    "Buscar" -> SearchPage(vm)
+                    "Pantalla" -> ScreenPage(vm)
+                    "APIs" -> TextApiPage(vm)
                     "Plan" -> PlanPage(vm)
                     "Descargas" -> DownloadsPage(vm, { file ->
                         confirm("Exportar una copia de ${file.name} a la ubicación que elijas. Fuera del almacenamiento privado, otras apps pueden acceder a ella.") {
@@ -166,6 +170,7 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Tu compañera, a tu ritmo", color = Ink, modifier = Modifier.weight(1f))
+            TextButton(onClick={vm.page="APIs"}) { Text(vm.skills.config.provider) }
             TextButton(enabled = !vm.busy && vm.messages.isNotEmpty(), onClick = {
                 confirm("Borrar el chat abierto y su borrador. Las notas de memoria se conservan.", vm::clearChat)
             }) { Text("Nuevo chat") }
@@ -177,11 +182,13 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
             }
         }
         if (vm.generating) TextButton(onClick = vm::cancelGeneration) { Text("Detener generación") }
+        if (vm.busy && vm.skills.config.provider != "Local") TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición nube") }
+        if (vm.draft.isNotBlank()) TextButton(enabled=!vm.busy,onClick={vm.skills.route(vm.draft)}) { Text("Preparar como búsqueda (sin enviarla al modelo)") }
         Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(enabled = !vm.busy, onClick = dictate) { Icon(Icons.Default.Mic, "Dictar o terminar dictado", tint = Aqua) }
             OutlinedTextField(value = vm.draft, onValueChange = { vm.draft = it }, enabled = !vm.busy,
                 modifier = Modifier.weight(1f), placeholder = { Text("Escribe o dicta…") }, maxLines = 5)
-            IconButton(enabled = !vm.busy && vm.draft.isNotBlank(), onClick = send) { Icon(Icons.AutoMirrored.Filled.Send, "Enviar al modelo local", tint = Pink) }
+            IconButton(enabled = !vm.busy && vm.draft.isNotBlank(), onClick = send) { Icon(Icons.AutoMirrored.Filled.Send, "Enviar local o revisar petición API", tint = Pink) }
         }
         Text("El dictado no envía mensajes. El chat se mantiene solo durante esta sesión.", fontSize = 11.sp, color = Ink.copy(alpha = 0.6f), modifier = Modifier.padding(top = 6.dp))
     }
@@ -327,7 +334,7 @@ private fun PrivacyPage(vm: SakuraViewModel, onInternet: (Boolean) -> Unit) {
         Info("LOCAL: chat y planificación GGUF, recuerdos cifrados, lectura de código y análisis de APK. RED: GitHub, descargas, APIs de mensajes, fal.ai y voz si la requiere. Crear en nube envía únicamente el prompt que revisas, no el chat ni los recuerdos. Compartir con otras apps usa sus propios permisos y conexiones.")
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Autorizar funciones con Internet", Modifier.weight(1f))
-            Switch(checked = vm.internetAllowed, enabled = !vm.busy, onCheckedChange = onInternet)
+            Switch(checked = vm.internetAllowed, enabled = !vm.busy || vm.internetAllowed, onCheckedChange = onInternet)
         }
         Text("Desactivado al iniciar cada sesión. Este interruptor controla las operaciones de Sakura, no es un firewall para Android ni para las apps abiertas.", fontSize = 12.sp)
         Text("Aprendizaje y personalidad", color = Pink, fontWeight = FontWeight.Bold)
