@@ -9,7 +9,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 
-data class FeatureConfirmation(val preview: String, val network: Boolean, val perform: suspend () -> String, val planIndex: Int? = null)
+data class FeatureConfirmation(val preview: String, val network: Boolean, val perform: suspend () -> String, val planIndex: Int? = null,
+    val onResult: ((Result<String>) -> Unit)? = null, val owner: String? = null)
 
 /** Shares Sakura's serialized UI work gate. A model proposal has no executable callback. */
 class FeatureController(private val vm: SakuraViewModel, private val context: Context, private val store: PrivateStore) {
@@ -41,13 +42,24 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
             }
         }
     }
-    fun revokeNetwork() { pending = null }
+    fun revokeNetwork() { dismiss() }
     fun close() { downloads.cancel() }
-    fun dismiss() { pending = null }
-    internal fun prepare(preview: String, network: Boolean = true, perform: suspend () -> String) {
-        if (vm.busy) return
-        if (network && !vm.internetAllowed) { vm.notice("Autoriza Internet en Privacidad antes de preparar esta acción."); return }
+    fun dismiss() {
+        val old = pending; pending = null
+        old?.onResult?.invoke(Result.failure(IllegalStateException("Acción cancelada antes de ejecutar.")))
+    }
+    internal fun dismissOwned(owner: String) { if(pending?.owner == owner) dismiss() }
+    internal fun observePending(owner: String, callback: (Result<String>) -> Unit): Boolean {
+        val action = pending ?: return false
+        pending = action.copy(onResult = callback, owner = owner)
+        return true
+    }
+    internal fun prepare(preview: String, network: Boolean = true, perform: suspend () -> String): Boolean {
+        if (vm.busy) return false
+        if (network && !vm.internetAllowed) { vm.notice("Autoriza Internet en Privacidad antes de preparar esta acción."); return false }
+        dismiss()
         pending = FeatureConfirmation(preview,network,perform)
+        return true
     }
     private fun validate(block: () -> Unit) {
         try { block() } catch (e: Exception) { vm.notice(e.message ?: "Datos inválidos.") }
@@ -57,14 +69,16 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         if (vm.busy) return
         pending = null // single use, including on errors/timeouts
         vm.workFeature("Ejecutando únicamente la acción confirmada…") {
-            check(!action.network || vm.internetAllowed) { "Red desautorizada." }
             report = ""
             try {
+                check(!action.network || vm.internetAllowed) { "Red desautorizada." }
                 report = action.perform()
                 action.planIndex?.let { evidence = evidence + (it to report) }
                 vm.notice(report.take(220))
+                action.onResult?.invoke(Result.success(report))
             } catch (e: Exception) {
                 report = "Resultado NO confirmado. ${e.message ?: "Fallo de operación."} Revisa el servicio antes de repetir una escritura."
+                action.onResult?.invoke(Result.failure(IllegalStateException(report)))
                 throw e
             }
         }
@@ -79,21 +93,24 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         vm.notice("Configuración guardada localmente. No se ha probado ni conectado el servicio.")
     }
 
-    fun prepareDownload(url: String, kind: String, model: CatalogModel? = null) = validate {
-        NetworkPolicy.https(url)
-        require(kind in listOf("Imagen","Video","Audio","Modelo") && (kind != "Modelo" || model in ModelCatalog.entries))
-        val details = if (model != null) "${model.title}\n${model.bytes} bytes\nLicencia: ${model.license}\n${model.warning}\nSHA-256 esperado: ${model.sha256}" else "$kind · límite 512 MiB. URL directa, no página web, YouTube, HLS, DRM ni sesión privada."
+    fun prepareDownload(url: String, kind: String, model: CatalogModel? = null, expectedHash: String? = null) = validate {
+        val uri = NetworkPolicy.directDownload(url)
+        require(kind in listOf("Imagen","Video","Audio","Modelo") && (kind != "Modelo" || model in ModelCatalog.entries ||
+            NetworkPolicy.ggufHash(expectedHash.orEmpty()) && uri.path.endsWith(".gguf",true)))
+        val details = if (model != null) "${model.title}\n${model.bytes} bytes\nLicencia: ${model.license}\n${model.warning}\nSHA-256 esperado: ${model.sha256}" else if (kind == "Modelo")
+            "GGUF personalizado · máximo ${AgentPolicy.MAX_MODEL_BYTES} bytes.\nSHA-256 esperado: $expectedHash\nObtén el hash del editor por una fuente independiente: un hash inventado por la IA no demuestra autenticidad. Revisa origen y licencia. Cabecera/hash no garantizan seguridad ni compatibilidad."
+            else "$kind · límite 512 MiB. URL directa, no página web, YouTube, HLS, DRM ni sesión privada."
         prepare("DESCARGAR por Internet:\n$url\n$details\nSe permiten hasta 5 redirecciones a HTTPS público sin cookies ni tokens. Guardado privado, no ejecutado. Puede consumir datos y varios GB de espacio. Confirma que tienes derecho a descargarlo.") {
             downloads.reset(); downloading = true; transfer = "Iniciando descarga…"
             try {
                 val result = withContext(Dispatchers.IO) {
-                    downloads.download(context,url,kind,model) { done,total ->
+                    downloads.download(context,url,kind,model,expectedHash) { done,total ->
                         transfer = "${done / (1024*1024)} MiB / ${if (total >= 0) "${total / (1024*1024)} MiB" else "tamaño desconocido"}"
                     }
                 }
                 withContext(Dispatchers.IO) { files = downloads.files(context) }
                 vm.refreshModels()
-                "Archivo guardado: ${result.file.name.substringAfter('_')}\n${result.file.length()} bytes\nSHA-256: ${result.sha256}\n${if (model?.category == "Chat") "Importado en Modelos; cargar requiere otra confirmación." else "Guardado en Descargas. No se ha ejecutado ni validado su seguridad."}"
+                "Archivo guardado: ${result.file.name.substringAfter('_')}\n${result.file.length()} bytes\nSHA-256: ${result.sha256}\n${if (model?.category == "Chat" || kind == "Modelo" && model == null) "Importado en Modelos; cargar requiere otra confirmación." else "Guardado en Descargas. No se ha ejecutado ni validado su seguridad."}"
             } finally { downloading = false }
         }
     }
@@ -166,6 +183,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         require(vm.internetAllowed && NetworkPolicy.branch(newBranch))
         val sha = withContext(Dispatchers.IO) { github.branchSha(owner,repo,source,store.read("github_token") ?: "") }
         // Work gate is still busy here; set this read-only preview explicitly.
+        dismiss()
         pending = FeatureConfirmation("CREAR RAMA en $owner/$repo\nNueva: $newBranch\nBase: $source\nSHA exacto: $sha\nNo cambia ni borra la rama base.",true, perform = {
             withContext(Dispatchers.IO) { github.createBranch(owner,repo,newBranch,sha,store.read("github_token") ?: "") }
         })
@@ -197,6 +215,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
     }
 
     fun receivePlan(text: String) {
+        dismiss()
         planJson = text
         try { plan = AgentPlanner.parse(text); validatedPlan = text; evidence = emptyMap(); pending = null; vm.notice("Plan propuesto, NO ejecutado. Revisa cada paso.") }
         catch (_: Exception) { plan = emptyList(); validatedPlan = ""; pending = null; vm.notice("Plan JSON inválido o herramienta no permitida. Edítalo o pide uno más corto; no se ejecutó nada.") }

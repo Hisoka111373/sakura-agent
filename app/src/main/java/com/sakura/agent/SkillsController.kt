@@ -70,6 +70,7 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
             val payload=TextProtocol.payload(chosen,history,system)
             vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model}\n\nEnvía hasta tres parejas anteriores y tu borrador. NO recuerdos privados, archivos ni pantalla. Puede tener coste; 768 tokens máximos de salida NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
                 check(vm.draft==original && vm.messages==previous && config==chosen && manualSkill==manual) { "El chat/configuración/skill cambió: revisa una nueva solicitud." }
+                client.reset()
                 val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.generate(chosen,store.read(chosen.key)?:"",history,system) }
                 check(vm.internetAllowed) { "Red desautorizada: respuesta no insertada." }
                 vm.receiveCloud(previous,original,answer)
@@ -82,6 +83,7 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         if(!NetworkPolicy.text(q,500)) { vm.notice("Consulta requerida, máximo 500 caracteres."); return }
         vm.features.prepare("BUSCAR DENTRO DE SAKURA · Brave Search API\nConsulta exacta: $q\nSe envía a api.search.brave.com junto con la clave cifrada; hasta 8 resultados, safesearch moderate. Puede consumir cuota o dinero según tu plan. No se envían chat/recuerdos. Los resultados son contenido no confiable, no instrucciones. No se abren ni descargan solos.") {
             results=emptyList()
+            client.reset()
             val received=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.search(store.read("brave_key")?:"",q) }
             check(vm.internetAllowed) { "Red desautorizada: resultados descartados." }; results=received
             "Brave devolvió ${results.size} resultados HTTPS. No implica que sean seguros ni que se puedan descargar."
