@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 internal fun DownloadsPage(vm: SakuraViewModel, export: (DownloadedFile) -> Unit) {
     val context = LocalContext.current
     var url by remember { mutableStateOf("") }
+    var ggufUrl by remember { mutableStateOf("") }
+    var ggufHash by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("Imagen") }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Info("Catálogo verificado por tamaño y SHA-256, sin pesos incluidos. Chat: GGUF para llama.cpp. Imagen/video: checkpoints para evaluación externa, NO generación local en Sakura. Consulta licencia antes de descargar; 8 GB de RAM no garantiza que puedan ejecutarse.") }
@@ -42,6 +44,13 @@ internal fun DownloadsPage(vm: SakuraViewModel, export: (DownloadedFile) -> Unit
             } }
         }
         item { HorizontalDivider() }
+        item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("GGUF personalizado con hash esperado",fontWeight=FontWeight.Bold)
+            Info("Solo chat GGUF, máximo 2.5 GB. Copia el SHA-256 del editor desde una fuente independiente y revisa su licencia. Coincidir con un hash no demuestra seguridad ni compatibilidad. Se guarda en Modelos; no se carga solo.")
+            Field("URL pública HTTPS terminada en .gguf",ggufUrl,{ggufUrl=it.take(4096)},!vm.busy)
+            Field("SHA-256 esperado (64 caracteres en minúsculas)",ggufHash,{ggufHash=it.take(64)},!vm.busy)
+            Button(enabled=!vm.busy && vm.internetAllowed && NetworkPolicy.ggufHash(ggufHash),onClick={vm.features.prepareDownload(ggufUrl.trim(),"Modelo",expectedHash=ggufHash)}) { Text("Revisar GGUF personalizado…") }
+        } }
         item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("Descargar imagen, audio o video por URL",fontWeight=FontWeight.Bold)
             Info("Solo enlaces HTTPS directos a archivos públicos que tengas permiso de descargar. Sin buscar automáticamente, entrar a cuentas, extraer de YouTube, eludir DRM ni descargar listas HLS. Máximo 512 MiB por archivo; datos privados en Sakura hasta que exportes.")
