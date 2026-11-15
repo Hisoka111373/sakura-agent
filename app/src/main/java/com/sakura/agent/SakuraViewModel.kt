@@ -21,6 +21,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     private val github = GitHubClient()
     val features = FeatureController(this, app, store)
     val skills = SkillsController(this, app, store)
+    val agent = AgentController(this, app, store)
     private val executor = Executors.newSingleThreadExecutor()
     private val nativeWorker = executor.asCoroutineDispatcher()
     private var engine: NativeLlama? = null
@@ -80,6 +81,11 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun notice(text: String) { status = text }
 
     internal fun workFeature(label: String, block: suspend () -> Unit) = work(label, block)
+    internal suspend fun generateAgentLocal(system: String, history: List<ChatMessage>): String {
+        check(loadedModel != null) { "Carga un GGUF primero." }
+        native().nativeResetCancellation(); generating = true
+        return withContext(nativeWorker) { native().generate(system,history) }
+    }
     internal suspend fun refreshModels() { models = withContext(Dispatchers.IO) { LocalFiles.models(app) } }
     internal fun invalidateRepo() { repoFile = null; pendingEdit = null }
     internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
@@ -117,7 +123,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun setInternet(allowed: Boolean) {
         if (busy && allowed) return
         internetAllowed = allowed
-        if (!allowed) { pendingEdit = null; features.revokeNetwork(); features.close(); skills.cancel() }
+        if (!allowed) { agent.stop(); pendingEdit = null; features.revokeNetwork(); features.close(); skills.cancel() }
         status = if (allowed) "GitHub, mensajería, descargas y generación nube pueden usar Internet con tus botones y confirmaciones." else "Red desautorizada en Sakura. Los servicios externos de Android tienen su propia configuración."
     }
 
@@ -277,6 +283,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     override fun onCleared() {
+        agent.close()
         features.close()
         skills.close()
         SakuraAccessibilityService.connected?.stopSession()

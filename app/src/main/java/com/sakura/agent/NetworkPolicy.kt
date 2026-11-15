@@ -8,7 +8,7 @@ object NetworkPolicy {
     const val MAX_MEDIA_BYTES = 512L * 1024 * 1024
     const val MAX_VISUAL_MODEL_BYTES = 5_000_000_000L
     val credentialKeys = setOf("telegram_token", "whatsapp_token", "whatsapp_phone_id", "fal_key",
-        "openai_key", "compatible_key", "gemini_key", "anthropic_key", "brave_key")
+        "openai_key", "openrouter_key", "groq_key", "deepseek_key", "mistral_key", "xai_key", "together_key", "fireworks_key", "compatible_key", "gemini_key", "anthropic_key", "brave_key")
     fun https(value: String): URI {
         require(value.length in 10..4096 && value.none { it.code < 32 }) { "URL inválida." }
         val uri = URI(value)
@@ -17,6 +17,16 @@ object NetworkPolicy {
         require(!uri.host.contains(':') && !uri.host.startsWith('[') && !uri.host.matches(Regex("[0-9.]+"))) { "Usa un dominio, no una dirección IP literal." }
         return uri
     }
+    fun directDownload(value: String): URI {
+        val uri = https(value)
+        val host = uri.host.lowercase().trimEnd('.')
+        val blocked = listOf("youtube.com", "youtu.be", "googlevideo.com", "ytimg.com", "youtube-nocookie.com")
+        require(blocked.none { host == it || host.endsWith(".$it") } && !host.contains("piped")) {
+            "No se descargan streams de YouTube ni proxies Piped. Abre YouTube oficialmente o usa un archivo con permiso de descarga."
+        }
+        return uri
+    }
+    fun ggufHash(value: String): Boolean = value.matches(Regex("[a-f0-9]{64}"))
     fun publicAddress(bytes: ByteArray): Boolean {
         val b = bytes.map { it.toInt() and 255 }
         if (b.size == 4) return b[0] !in listOf(0, 10, 127) && b[0] < 224 &&

@@ -22,18 +22,22 @@ class TextSearchClient {
             }
         }).connectTimeout(15,TimeUnit.SECONDS).readTimeout(90,TimeUnit.SECONDS).callTimeout(100,TimeUnit.SECONDS).build()
     @Volatile private var active: okhttp3.Call? = null
-    fun cancel() { active?.cancel() }
+    private val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+    fun reset() { cancelled.set(false) }
+    fun cancel() { cancelled.set(true); active?.cancel() }
     private fun request(url: String, headers: Map<String,String>, body: JSONObject? = null): JSONObject {
         NetworkPolicy.https(url)
         val builder=Request.Builder().url(url).header("Accept","application/json")
         headers.forEach { (k,v) -> builder.header(k,v) }
         if(body!=null) builder.post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
         val call=http.newCall(builder.build()); active=call
+        if(cancelled.get()) call.cancel()
         try {
             return call.execute().use { response ->
                 require(response.code in 200..299) { "HTTP ${response.code}. Resultado no confirmado; sin reintento automático." }
                 val source=response.body?.source() ?: error("Sin respuesta.")
                 require(!source.request(1_048_577)) { "Respuesta supera 1 MiB." }
+                check(!cancelled.get()) { "Petición cancelada." }
                 JSONObject(source.readUtf8())
             }
         } catch(e:Exception) {

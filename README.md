@@ -5,9 +5,29 @@ Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno ro
 **La APK no está probada en un teléfono.** La versión 0.2 compiló en GitHub Actions
 y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
 La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. La 0.4 pasó
-CI run43553143121 y se integró por PR #5. Para 0.5 consulta su propio PR/CI:
-las pruebas en dispositivo siguen pendientes.
+CI run43553143121 y se integró por PR #5. La 0.5 pasó CI43638461195 y se integró
+por PR #7. Para 0.6 consulta su propio PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
+
+## Ampliación 0.6 — integración del agente pendiente
+
+- Nueva pestaña **Agente**: hasta 10 propuestas por sesión con GGUF o API de texto.
+  Cada petición de modelo y cada herramienta requiere revisión independiente;
+  no hay bucle autónomo, espera activa ni continuación automática tras confirmar.
+- JSON estricto validado: web Brave, lectura HTTPS pública, GitHub lectura, catálogo,
+  descargas, mensajes, generación fal.ai, apps visibles y sesiones limitadas de pantalla.
+  Reutiliza las confirmaciones existentes con registro de resultados reales en RAM.
+- Conserva **Jardín, 93 skills, favoritos, chat, voz y privacidad** de main.
+- Presets OpenRouter/Groq/DeepSeek/Mistral/xAI/Together/Fireworks además de los anteriores;
+  claves cifradas y modelo de texto exacto configurable. No garantiza cuota gratis.
+- GGUF personalizado con SHA-256 esperado obligatorio; bloquea YouTube/Googlevideo/Piped
+  al iniciar descarga y en cada redirección. YouTube se abre oficialmente, no extrae streams.
+- No incorpora la URL obsoleta de Pollinations ni promete imágenes gratis. Usa fal.ai
+  con revisión de coste. No amplía accesibilidad a apps sensibles ni instala APK.
+
+En modo nube, Agente puede enviar fragmentos de resultados previos (incluso GitHub privado
+o inventario de apps) **solo al confirmar su JSON completo**. No comparte recuerdos,
+chat ni pantalla automáticamente. Ver [docs/FEATURES-0.6.md](docs/FEATURES-0.6.md).
 
 ## Ampliación 0.5 — Jardín Sakura y 93 skills
 
@@ -84,8 +104,8 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 
 ## Integración en GitHub
 
-0.2, 0.3 y 0.4 ya integradas por PR #3/#4/#5. La ampliación actual se sube a
-`sakura-v0.5-garden`, base `0517e04c7890625f65d33bc880c717d0db0b61fe`,
+0.2, 0.3, 0.4 y 0.5 ya integradas por PR #3/#4/#5/#7. La ampliación actual se sube a
+`sakura-v0.6-integration`, base `9a9423197d8626e67e5744e0221624f32441e8a8`,
 mediante pull request, conservando el proyecto Android original. Consulta su PR/Actions
 para conocer el estado actual de integración y compilación; las verificaciones
 estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
@@ -209,13 +229,13 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 64 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- 86 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla y agente: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:
   aprobado. No enlaza la biblioteca ni prueba instrucciones ARM64.
 - Scripts: `bash -n` y comprobación de parche: aprobados.
-- Build Android/ARM64 de 0.2/0.3/0.4 aprobado en Actions. Consulta CI del nuevo commit 0.5.
+- Build Android/ARM64 de 0.2/0.3/0.4/0.5 aprobado en Actions. Consulta CI del nuevo commit 0.6.
 - **Pendiente en dispositivo:** inferencia real, RAM pico/rendimiento, Keystore, voz,
   APK de prueba, apps, exportaciones, downloads completos y operaciones de GitHub,
   mensajería, fal.ai, Brave, APIs de texto y Accesibilidad. No se enviaron mensajes

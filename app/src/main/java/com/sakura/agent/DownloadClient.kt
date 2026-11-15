@@ -27,7 +27,7 @@ class DownloadClient {
                 require(addresses.isNotEmpty() && addresses.all { NetworkPolicy.publicAddress(it.address) }) { "El destino no tiene solo direcciones públicas." }
                 return addresses // Exact validated IPs, not a second DNS resolution.
             }
-        }).connectTimeout(15,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS)
+        }).retryOnConnectionFailure(false).connectTimeout(15,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS)
         .callTimeout(45,TimeUnit.MINUTES).build()
     @Volatile private var active: Call? = null
     fun cancel() { cancelled.set(true); active?.cancel() }
@@ -37,19 +37,25 @@ class DownloadClient {
         .map { DownloadedFile(it.name, it.name.substringAfter('_'), it.length()) }.sortedBy { it.name }
 
     fun download(context: Context, url: String, kind: String, model: CatalogModel? = null,
+        expectedHash: String? = null,
         progress: (Long, Long) -> Unit): DownloadResult {
         require(kind in listOf("Imagen", "Video", "Audio", "Modelo"))
-        require(kind != "Modelo" || model != null && url == model.url) { "Los modelos se descargan desde el catálogo verificado." }
-        val targetDir = if (model?.category == "Chat") LocalFiles.modelDir(context) else dir(context)
+        require(model == null || model in ModelCatalog.entries && kind == "Modelo" && url == model.url)
+        val custom = kind == "Modelo" && model == null
+        var uri = NetworkPolicy.directDownload(url)
+        require(!custom || NetworkPolicy.ggufHash(expectedHash.orEmpty()) && uri.path.endsWith(".gguf",true)) {
+            "GGUF personalizado requiere URL .gguf y SHA-256 esperado de 64 caracteres en minúsculas."
+        }
+        val chatModel = custom || model?.category == "Chat"
+        val targetDir = if (chatModel) LocalFiles.modelDir(context) else dir(context)
         val reserve = 256L * 1024 * 1024
         val cap = if (kind == "Modelo") {
-            if (model?.category == "Chat") AgentPolicy.MAX_MODEL_BYTES else NetworkPolicy.MAX_VISUAL_MODEL_BYTES
+            if (chatModel) AgentPolicy.MAX_MODEL_BYTES else NetworkPolicy.MAX_VISUAL_MODEL_BYTES
         } else NetworkPolicy.MAX_MEDIA_BYTES
         val limit = minOf(cap, targetDir.usableSpace - reserve)
         require(limit > 0 && (model == null || model.bytes <= limit)) { "Espacio insuficiente o archivo por encima del límite." }
         val prefix = UUID.randomUUID().toString() + "_"
         val temporary = File(targetDir, prefix + "download.part")
-        var uri = NetworkPolicy.https(url)
         val started = System.nanoTime()
         try {
             var redirects = 0
@@ -64,7 +70,7 @@ class DownloadClient {
                     if (code in listOf(301,302,303,307,308)) {
                         require(redirects++ < 5) { "Demasiadas redirecciones." }
                         val location = connection.header("Location") ?: error("Redirección sin destino.")
-                        uri = NetworkPolicy.https(uri.resolve(location).toString())
+                        uri = NetworkPolicy.directDownload(uri.resolve(location).toString())
                         return@use
                     }
                     require(code == 200) { "Descarga HTTP $code. No se ha guardado el archivo." }
@@ -97,6 +103,11 @@ class DownloadClient {
                         require(total == model.bytes && digest == model.sha256) { "SHA-256 o tamaño del modelo incorrecto; archivo descartado." }
                         if (model.category == "Chat") require(AgentPolicy.validGguf(temporary.inputStream().use { it.readNBytes(8) })) { "Cabecera GGUF inválida." }
                         name = model.file; extension = model.file.substringAfterLast('.')
+                    } else if (custom) {
+                        require(digest == expectedHash) { "SHA-256 no coincide; GGUF descartado." }
+                        require(AgentPolicy.validGguf(temporary.inputStream().use { it.readNBytes(8) })) { "Cabecera GGUF inválida." }
+                        extension = "gguf"
+                        name = "modelo-personalizado.gguf"
                     } else {
                         extension = NetworkPolicy.mediaExtension(temporary.inputStream().use { it.readNBytes(16) }, kind)
                             ?: error("No es un formato de $kind admitido. No se descargan páginas HTML ni listas de reproducción.")

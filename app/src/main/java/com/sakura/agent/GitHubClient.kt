@@ -12,6 +12,10 @@ data class PendingEdit(val source: RepoFile, val replacement: String, val messag
 
 /** HTTPS API only; no remote code execution. A read never calls PUT. */
 class GitHubClient {
+    private val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var active: HttpURLConnection? = null
+    fun reset() { cancelled.set(false) }
+    fun cancel() { cancelled.set(true); active?.disconnect() }
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
     private fun base(owner: String, repo: String): String {
         require(AgentPolicy.validRepo(owner, repo)) { "Propietario o repositorio inválido." }
@@ -114,8 +118,11 @@ class GitHubClient {
 
     private fun request(method: String, path: String, token: String, body: String? = null): JSONObject {
         require(token.none { it.code < 32 }) { "Token inválido." }
+        check(!cancelled.get()) { "Consulta GitHub cancelada." }
         val connection = URI("https://api.github.com$path").toURL().openConnection() as HttpURLConnection
+        active = connection
         try {
+            check(!cancelled.get()) { "Consulta GitHub cancelada." }
             connection.requestMethod = method
             connection.instanceFollowRedirects = false // never forward credentials to a redirect host
             connection.connectTimeout = 15_000
@@ -144,6 +151,7 @@ class GitHubClient {
                 val output = java.io.ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 while (true) {
+                    check(!cancelled.get()) { "Consulta GitHub cancelada." }
                     val size = input.read(buffer)
                     if (size < 0) break
                     require(output.size() + size <= 2 * 1024 * 1024) { "Respuesta de GitHub demasiado grande." }
@@ -154,6 +162,6 @@ class GitHubClient {
             return if (result.trimStart().startsWith("[")) JSONObject().put("items",org.json.JSONArray(result)) else JSONObject(result)
         } catch (_: java.io.IOException) {
             error("GitHub: fallo de conexión. Si era una escritura, revisa el historial antes de repetir; el servidor puede haberla aplicado.")
-        } finally { connection.disconnect() }
+        } finally { active = null; connection.disconnect() }
     }
 }

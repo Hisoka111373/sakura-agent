@@ -58,7 +58,7 @@ internal fun TextApiPage(vm: SakuraViewModel) {
     var model by remember(current) { mutableStateOf(current.model) }
     var endpoint by remember(current) { mutableStateOf(current.endpoint) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-        Info("Local por defecto. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. No se envían notas privadas, archivos ni pantalla. Configura claves cifradas en Privacidad. No se prueba una conexión al guardar. Disponibilidad/precios y retención dependen del proveedor.")
+        Info("Local por defecto. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. Chat no añade notas privadas, archivos ni pantalla. Agente puede incluir fragmentos de resultados anteriores (GitHub/apps/web): revisa su JSON completo antes de compartir. Configura claves cifradas en Privacidad. No se prueba una conexión al guardar. Disponibilidad/precios y retención dependen del proveedor; usa un modelo de texto con Chat Completions, no Responses ni audio.")
         Row(Modifier.horizontalScroll(rememberScrollState())) { TextProtocol.providers.forEach { option ->
             FilterChip(provider==option,{provider=option;model=""},label={Text(option)},modifier=Modifier.padding(end=5.dp))
         } }
