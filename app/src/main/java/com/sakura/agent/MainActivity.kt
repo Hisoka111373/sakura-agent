@@ -192,13 +192,13 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
         if (!vm.starterReady || vm.loadedModel == null) StarterModelCard(vm, confirm, compact = true)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
             FilterChip(selected = vm.skills.chatMode == "Local", enabled = !vm.busy,
-                onClick = { vm.skills.setChatMode("Local") }, label = { Text("Local") })
+                onClick = { vm.skills.updateChatMode("Local") }, label = { Text("Local") })
             FilterChip(selected = vm.skills.chatMode == "Online", enabled = !vm.busy,
-                onClick = { vm.skills.setChatMode("Online") }, label = { Text("Online") })
+                onClick = { vm.skills.updateChatMode("Online") }, label = { Text("Online") })
             FilterChip(selected = vm.skills.thinking == "Bajo", enabled = !vm.busy,
-                onClick = { vm.skills.setThinking("Bajo") }, label = { Text("Pensar: bajo") })
+                onClick = { vm.skills.updateThinking("Bajo") }, label = { Text("Pensar: bajo") })
             FilterChip(selected = vm.skills.thinking == "Alto", enabled = !vm.busy,
-                onClick = { vm.skills.setThinking("Alto") }, label = { Text("Pensar: alto") })
+                onClick = { vm.skills.updateThinking("Alto") }, label = { Text("Pensar: alto") })
             TextButton(onClick = { vm.page = "APIs" }) { Text("Cambiar API") }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
@@ -434,7 +434,7 @@ private fun PrivacyPage(vm: SakuraViewModel, onInternet: (Boolean) -> Unit) {
         Row(Modifier.horizontalScroll(rememberScrollState())) {
             listOf("Bajo","Alto").forEach { mode ->
                 FilterChip(selected = vm.skills.thinking == mode, enabled = !vm.busy,
-                    onClick = { vm.skills.setThinking(mode) }, label = { Text(if(mode=="Bajo") "Bajo · rápido" else "Alto · detallado") },
+                    onClick = { vm.skills.updateThinking(mode) }, label = { Text(if(mode=="Bajo") "Bajo · rápido" else "Alto · detallado") },
                     modifier = Modifier.padding(end = 5.dp))
             }
         }

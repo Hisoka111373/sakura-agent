@@ -2,12 +2,37 @@
 
 Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno rosa/turquesa.
 
-**La APK no está probada en un teléfono.** La versión 0.2 compiló en GitHub Actions
+**La APK no está probada en un teléfono.** La versión 0.8 añade Gemini 2.5,
+selector Local/Online, pensamiento bajo/alto, acciones desde el chat y una mascota
+más animada; su compilación se valida en GitHub Actions. La 0.2 compiló en Actions
 y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
 La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. La 0.4 pasó
 CI run43553143121 y se integró por PR #5. La 0.5 pasó CI43638461195 y se integró
 por PR #7. Para 0.6 consulta su propio PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
+
+## Ampliación 0.8 — Gemini, Local/Online y pensamiento
+
+- **Gemini corregido:** modelos 2.5 (`flash`, `flash-lite`, `pro`), IDs con o sin
+  `models/`, `thinkingBudget` 0/1024 solo para 2.5 Flash y errores HTTP con el
+  motivo del proveedor sin exponer la clave.
+- **Probar sin guardar:** APIs prueba el formulario y la clave visibles; «Guardar
+  y usar en el chat» guarda, activa Online y vuelve a Chat. Guardar no conecta.
+- **Local u Online:** chips en Chat. Online exige proveedor y clave; Local usa el
+  GGUF. La elección se conserva.
+- **Pensamiento bajo/alto:** local 160/320 tokens, 4/6 mensajes y temperatura
+  0.55/0.8; nube 512/1024 tokens. Alto tarda más; no garantiza mejores respuestas.
+- **Acciones desde el chat:** «abre YouTube», «abre https://…», «escribe hola en
+  Chrome» o «abre YouTube y busca lofi». Se interpretan localmente, muestran una
+  vista previa y requieren confirmación. Pantalla sigue limitada a YouTube,
+  Chrome, Firefox y Play Store.
+- **Mascota y voz kawaii:** rebote, balanceo, parpadeo, chispas, nota musical,
+  20 pétalos y frases rotativas. Voz automática activada por defecto, pitch 1.14;
+  se puede desactivar. TTS local primero, sin subir audio.
+- **Rendimiento local:** hilos automáticos (2–8), batch 512/ubatch 256, contexto
+  2048, sampler por temperatura. Sigue siendo CPU ARM64, sin GPU.
+- **Límites:** no probado en teléfono; Gemini depende de Google y de tu cuenta;
+  las acciones no dan autonomía al modelo. Ver [docs/FEATURES-0.8.md](docs/FEATURES-0.8.md).
 
 ## Ampliación 0.7 — una APK ligera que descarga su modelo
 
@@ -136,10 +161,10 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 ## Integración en GitHub
 
 0.2, 0.3, 0.4 y 0.5 ya integradas por PR #3/#4/#5/#7. 0.6 se integró desde
-`sakura-v0.6-integration` y 0.7 desde `feature/sakura-0.7-auto-model` en `main`,
-conservando el proyecto Android original. La APK 0.7 vive en `apk/`; no hay
-release 0.7. Consulta el CI de `main` para el estado actual de compilación y
-tests; las verificaciones estáticas no sustituyen pruebas en un teléfono.
+`sakura-v0.6-integration`, 0.7 desde `feature/sakura-0.7-auto-model` y 0.8 desde
+`feature/sakura-0.8-gemini-chat` en `main`, conservando el proyecto Android
+original. Las APK viven en `apk/`; no hay releases. Consulta el CI de `main` para
+el estado actual; las verificaciones estáticas no sustituyen pruebas en un teléfono.
 
 ## Funciones implementadas en el código
 
@@ -148,12 +173,12 @@ tests; las verificaciones estáticas no sustituyen pruebas en un teléfono.
 | Personalidad | Español, amabilidad, humor opcional y tono de compañera definidos en el prompt. El cumplimiento depende del modelo. |
 | Memoria | Notas explícitas de preferencia/proyecto/avance, cifradas con AES-GCM + Android Keystore; revisión y borrado individual o total. Hasta 100 notas; últimas 12 en contexto. |
 | Aprendizaje | Nivel principiante/intermedio/avanzado persistente. Adapta instrucciones al modelo; no reentrena pesos. |
-| IA local | Puente JNI a llama.cpp fijado a un commit; importar, cargar, cambiar, liberar y borrar GGUF. CPU, 2048 tokens de contexto, hasta 384 de salida. |
+| IA local | Puente JNI a llama.cpp fijado a un commit; importar, cargar, cambiar, liberar y borrar GGUF. CPU, 2048 de contexto, 160/320 tokens de salida según pensamiento, hilos automáticos y batch 512/256. |
 | Programación | Importar texto UTF-8 de hasta 64 KiB y pedir explicaciones/sugerencias para Python, Java, Kotlin, HTML y JavaScript. No ejecuta ni compila código. |
 | GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. |
 | Android | Listar/abrir apps visibles con confirmación. Pantalla: búsqueda accesible manual solo en apps permitidas, no control general. |
 | APK | Revisar la APK seleccionada: paquete, versión, SDK, permisos, hashes de certificado y archivo, bibliotecas. Sin instalar, ejecutar ni extraer ZIP. No es antivirus ni verificación completa de firma. |
-| Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local; lectura automática opcional y botón de saludo. |
+| Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local; lectura automática activada por defecto (desactivable), pitch kawaii, frases rotativas y botón de saludo. |
 | Privacidad | Red desautorizada al iniciar. Chat en RAM; memoria/credenciales cifradas. fal.ai recibe prompt visual confirmado; APIs de texto reciben contexto confirmado sin notas guardadas. No hay analítica añadida ni envío de pantalla. FLAG_SECURE. |
 
 ## Requisitos y compatibilidad

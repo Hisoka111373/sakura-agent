@@ -50,13 +50,13 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
             if (config.provider == "Local") chatMode = "Local"
         }
     }
-    fun setChatMode(mode: String) = vm.workFeature("Guardando modo de respuesta…") {
+    fun updateChatMode(mode: String) = vm.workFeature("Guardando modo de respuesta…") {
         require(mode in listOf("Local","Online"))
         withContext(Dispatchers.IO) { store.write("chat_mode", mode) }
         chatMode = mode
         vm.notice(if (mode == "Online") "Modo online: ${config.provider} · ${config.model.ifBlank { "elige modelo en APIs" }}. Cada respuesta pedirá revisión." else "Modo local: usa el GGUF cargado en CPU.")
     }
-    fun setThinking(mode: String) = vm.workFeature("Guardando modo de pensamiento…") {
+    fun updateThinking(mode: String) = vm.workFeature("Guardando modo de pensamiento…") {
         require(mode in listOf("Bajo","Alto"))
         withContext(Dispatchers.IO) { store.write("thinking_mode", mode) }
         thinking = mode

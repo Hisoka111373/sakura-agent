@@ -20,6 +20,7 @@ class SakuraVoice(
     private var listening = false
     private var disposed = false
     private var tts: TextToSpeech? = null
+    private var pending: Pair<String, Boolean>? = null
 
     init {
         tts = TextToSpeech(context) { code ->
@@ -27,6 +28,8 @@ class SakuraVoice(
                 ready = code == TextToSpeech.SUCCESS
                 tts?.setSpeechRate(1.03f)
                 tts?.setPitch(1.14f)
+                if (!ready) onStatus("No se pudo iniciar el motor de voz de Android.")
+                pending?.let { (text, internet) -> pending = null; speak(text, internet) }
             }
         }
     }
@@ -75,7 +78,11 @@ class SakuraVoice(
 
     fun speak(text: String, internetAllowed: Boolean) {
         val engine = tts
-        if (!ready || engine == null) { onStatus("El motor de voz todavía no está listo."); return }
+        if (!ready || engine == null) {
+            pending = text.take(3500) to internetAllowed
+            onStatus("Preparando la voz de Sakura; se leerá cuando el motor esté listo.")
+            return
+        }
         val voices = engine.voices.orEmpty().filter { voice ->
             voice.locale.language == "es" &&
                 (internetAllowed || !voice.isNetworkConnectionRequired) &&
