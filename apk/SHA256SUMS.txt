@@ -1,0 +1,1 @@
+6512ec74cae0f18d95c9ec02efbb60b0ae039be02e9160c08b449ca822e7cd96  SakuraAgent-0.6.0-arm64-debug.apk
