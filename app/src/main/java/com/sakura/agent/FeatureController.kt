@@ -114,6 +114,12 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
             } finally { downloading = false }
         }
     }
+    /** First-run download bypasses the confirmation dialog but still uses the same SHA/size checks. */
+    internal suspend fun downloadStarter(model: CatalogModel, progress: (Long, Long) -> Unit): DownloadResult =
+        withContext(Dispatchers.IO) {
+            downloads.reset()
+            downloads.download(context, model.url, "Modelo", model, progress = progress)
+        }
     fun cancelDownload() { downloads.cancel(); vm.notice("Cancelación de descarga solicitada.") }
     fun prepareDelete(file: DownloadedFile) = prepare("Borrar ${file.name} del almacenamiento privado de Sakura. No se puede deshacer.",false) {
         withContext(Dispatchers.IO) {

@@ -9,6 +9,37 @@ CI run43553143121 y se integró por PR #5. La 0.5 pasó CI43638461195 y se integ
 por PR #7. Para 0.6 consulta su propio PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
 
+## Ampliación 0.7 — una APK ligera que descarga su modelo
+
+- **Sin pesos dentro de la APK.** La APK sigue siendo pequeña. En el primer
+  inicio Sakura descarga **Qwen2.5 1.5B Instruct Q4_K_M** (1.117.320.736 bytes,
+  Apache 2.0) desde Hugging Face, comprueba tamaño y SHA-256, lo copia al
+  almacenamiento privado y lo carga automáticamente. También puedes cancelar,
+  reintentar o desactivar la descarga automática en Privacidad.
+- **Voz de Sakura:** lectura automática opcional de respuestas, botón de saludo
+  de voz en Jardín y lectura bajo demanda en cada mensaje. Sigue usando una voz
+  española instalada en Android; no hay voz clonada ni subida de audio.
+- **Mascota animada:** respiración, brillo, pétalos y parallax en Jardín y en el
+  chat. No son GIFs ni video: es animación Compose en el dispositivo.
+- **Modelos visibles:** la pestaña Modelos aparece junto a Chat e incluye el
+  modelo inicial, modelos instalados, catálogo filtrable, enlaces de licencia y
+  descargas con confirmación. El GGUF personalizado sigue en Descargas.
+- **Claves API claras:** campo directo en APIs con mostrar/ocultar, modelos
+  sugeridos editables, guardado cifrado, borrado y **Probar conexión** con una
+  petición mínima revisada. Las demás credenciales siguen en Privacidad con un
+  selector y el mismo campo oculto.
+- **Buscar desde el chat:** escribe «busca …», «búscame …», «encuentra …» o
+  «search …». Si hay clave Brave, pide confirmación y añade hasta 5 resultados
+  al chat. Sin clave Brave, pide confirmación y abre YouTube/navegador/Play Store.
+  Los resultados son contenido no confiable y no se abren ni descargan solos.
+- **Se conserva:** Jardín, mascota original, 93 skills, favoritos, memoria
+  cifrada, agente, planes, GitHub, mensajes, pantalla, descargas y privacidad.
+- **Requisitos:** Android 13+, ARM64, idealmente 8 GB de RAM y Wi-Fi para la
+  primera descarga. El modelo ocupa ~1,1 GB; el APK + copia privada puede añadir
+  ~2,2 GB. Tamaño ≠ RAM necesaria. Aún **no se ha probado en un teléfono**.
+- La APK 0.7 se publica solo en `apk/`, no como release. La descarga del modelo
+  se hace desde Hugging Face; no se envían archivos, chat, recuerdos ni claves.
+
 ## Ampliación 0.6 — integración del agente pendiente
 
 - Nueva pestaña **Agente**: hasta 10 propuestas por sesión con GGUF o API de texto.
@@ -139,16 +170,16 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 - Usa modelos de fuentes confiables. Archivos GGUF/APK no confiables pueden tener riesgos
   de parser; esta app no ofrece aislamiento de seguridad contra vulnerabilidades nativas.
 
-### Modelo inicial sugerido (no incluido)
+### Modelo inicial (descarga automática opcional)
 
-Como primer candidato de prueba para 8 GB, usa el catálogo para descargar
-[Qwen2.5-3B-Instruct-GGUF oficial](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
-en Q4_K_M. Su licencia específica debe revisarse antes de usarlo. La alternativa menor es
-[Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
-Para enfocarte en código puedes evaluar
-[Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF).
-Revisa su licencia y tarjeta antes de descargar. No se redistribuyen pesos, no se añade
-descarga automática y ninguno de estos candidatos se ha ejecutado en esta entrega.
+El modelo inicial de 0.7 es
+[Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF),
+archivo `qwen2.5-1.5b-instruct-q4_k_m.gguf`, Apache 2.0. Sakura lo descarga en el
+primer inicio si no hay otro modelo, comprueba tamaño/SHA-256 y lo carga. No se
+redistribuyen pesos dentro del repositorio ni de la APK. Para 8 GB también puedes
+probar [Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
+desde el catálogo; revisa su licencia. La descarga automática se puede desactivar
+en Privacidad y el modelo se puede borrar desde Modelos.
 
 ## Compilar desde tu computadora
 
@@ -189,11 +220,17 @@ Se eliminó la copia redundante en `github/workflows/`, que GitHub no ejecuta.
 
 ## Primer uso
 
-1. Modelos → Importar GGUF → Cargar y confirmar. Espera la carga antes de chatear.
-2. Privacidad → selecciona nivel y humor. Mantén la red desactivada para empezar.
+1. Instala la APK 0.7 y abre Sakura. En el primer inicio descarga el modelo inicial
+   (~1,1 GB), lo verifica y lo carga. Usa Wi-Fi; puedes cancelar desde Jardín, Chat
+   o Modelos y reintentar después. No hace falta importar nada para empezar.
+2. Privacidad → selecciona nivel, humor, voz automática y si quieres descarga/carga
+   automática del modelo. El interruptor de Internet sigue desactivado al iniciar.
 3. Memoria → guarda notas concretas. No se extraen recuerdos del chat automáticamente.
-4. Chat → escribe un mensaje corto. Micrófono pide permiso; revisa el dictado antes de enviar.
-5. Herramientas → selecciona archivos o apps. No se pide acceso general al almacenamiento,
+4. Chat → escribe un mensaje corto, dicta o pide «busca …». Micrófono pide permiso;
+   revisa el dictado antes de enviar. La búsqueda siempre pide confirmación.
+5. APIs → elige proveedor, modelo sugerido y guarda la clave cifrada; usa «Probar
+   conexión» solo si aceptas la petición mínima. Local no necesita clave.
+6. Herramientas → selecciona archivos o apps. No se pide acceso general al almacenamiento,
    instalación de paquetes, root ni QUERY_ALL_PACKAGES. Accesibilidad opcional solo
    si tú la activas manualmente para Pantalla; consulta la divulgación antes.
 

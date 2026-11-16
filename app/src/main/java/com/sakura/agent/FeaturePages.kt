@@ -9,6 +9,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -163,20 +167,50 @@ internal fun PlanPage(vm: SakuraViewModel) {
 internal fun ServiceCredentials(vm: SakuraViewModel) {
     var key by remember { mutableStateOf("telegram_token") }
     var value by remember { mutableStateOf("") }
-    Text("Credenciales de servicios",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
-    Info("Solo se guardan si las introduces tú. Cifradas con Keystore; no se incluyen en código, planes, prompts ni descargas. Telegram y Meta envían mensajes al proveedor. fal.ai factura en tu cuenta. Configuración guardada NO significa conexión probada.")
-    val labels = mapOf("telegram_token" to "Token bot Telegram", "whatsapp_token" to "Token Meta WhatsApp", "whatsapp_phone_id" to "Phone Number ID Meta", "fal_key" to "Clave fal.ai",
-        "openai_key" to "Clave OpenAI", "compatible_key" to "Clave endpoint compatible", "gemini_key" to "Clave Gemini",
-        "anthropic_key" to "Clave Anthropic", "brave_key" to "Clave Brave Search")
-    Row(Modifier.horizontalScroll(rememberScrollState())) { labels.forEach { (id,label) ->
-        FilterChip(key==id,{key=id;value=""},label={Text(label)},modifier=Modifier.padding(end=6.dp))
-    } }
-    Text(if(key in vm.features.configured) "Valor guardado y cifrado; no se muestra." else "Sin configurar.",fontSize=12.sp)
-    OutlinedTextField(value=value,onValueChange={value=it.take(512)},enabled=!vm.busy,label={Text(labels.getValue(key))},singleLine=true,
-        visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
-    Row { Button(enabled=!vm.busy && value.isNotBlank(),onClick={vm.features.saveCredential(key,value);value=""}) { Text("Guardar cifrado") }
-        TextButton(enabled=!vm.busy && key in vm.features.configured,onClick={vm.features.saveCredential(key,"");value=""}) { Text("Borrar local") } }
-    Text("Borrar localmente no revoca el acceso en el proveedor. Limita permisos y cuota en cada servicio; no uses tokens de administración innecesarios.",fontSize=12.sp)
+    var expanded by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(false) }
+    val labels = linkedMapOf(
+        "telegram_token" to "Token bot Telegram", "whatsapp_token" to "Token Meta WhatsApp",
+        "whatsapp_phone_id" to "Phone Number ID Meta", "fal_key" to "Clave fal.ai",
+        "openai_key" to "Clave OpenAI", "openrouter_key" to "Clave OpenRouter", "groq_key" to "Clave Groq",
+        "deepseek_key" to "Clave DeepSeek", "mistral_key" to "Clave Mistral", "xai_key" to "Clave xAI",
+        "together_key" to "Clave Together", "fireworks_key" to "Clave Fireworks",
+        "compatible_key" to "Clave endpoint compatible", "gemini_key" to "Clave Gemini",
+        "anthropic_key" to "Clave Anthropic", "brave_key" to "Clave Brave Search"
+    )
+    Text("Credenciales de servicios", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+    Info("Solo se guardan si las introduces tú. Cifradas con Android Keystore; no se incluyen en código, planes, prompts ni descargas. Telegram y Meta envían mensajes al proveedor. fal.ai factura en tu cuenta. Configuración guardada NO significa conexión probada. Las claves de proveedores de texto también se pueden guardar en APIs junto al modelo.")
+    Box {
+        OutlinedButton(onClick = { expanded = true }, enabled = !vm.busy) { Text(labels.getValue(key)) }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            labels.forEach { (id, label) ->
+                DropdownMenuItem(text = { Text(label) }, onClick = {
+                    key = id; value = ""; visible = false; expanded = false
+                })
+            }
+        }
+    }
+    Text(if (key in vm.features.configured) "Valor guardado y cifrado; no se muestra." else "Sin configurar.", fontSize = 12.sp)
+    OutlinedTextField(
+        value = value,
+        onValueChange = { value = it.take(512) },
+        enabled = !vm.busy,
+        label = { Text(labels.getValue(key)) },
+        singleLine = true,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { visible = !visible }) {
+                Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (visible) "Ocultar" else "Mostrar")
+            }
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        Button(enabled = !vm.busy && value.isNotBlank(), onClick = { vm.features.saveCredential(key, value.trim()); value = "" }) { Text("Guardar cifrado") }
+        TextButton(enabled = !vm.busy && key in vm.features.configured, onClick = { vm.features.saveCredential(key, ""); value = "" }) { Text("Borrar local") }
+        if (key == "brave_key") TextButton(onClick = { vm.page = "Buscar" }) { Text("Probar búsqueda") }
+    }
+    Text("Borrar localmente no revoca el acceso en el proveedor. Limita permisos y cuota en cada servicio; no uses tokens de administración innecesarios.", fontSize = 12.sp)
 }
 
 @Composable

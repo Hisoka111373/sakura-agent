@@ -27,8 +27,8 @@ class DownloadClient {
                 require(addresses.isNotEmpty() && addresses.all { NetworkPolicy.publicAddress(it.address) }) { "El destino no tiene solo direcciones públicas." }
                 return addresses // Exact validated IPs, not a second DNS resolution.
             }
-        }).retryOnConnectionFailure(false).connectTimeout(15,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS)
-        .callTimeout(45,TimeUnit.MINUTES).build()
+        }).retryOnConnectionFailure(false).connectTimeout(15,TimeUnit.SECONDS).readTimeout(60,TimeUnit.SECONDS)
+        .callTimeout(90,TimeUnit.MINUTES).build()
     @Volatile private var active: Call? = null
     fun cancel() { cancelled.set(true); active?.cancel() }
     fun reset() { cancelled.set(false) }
@@ -85,7 +85,7 @@ class DownloadClient {
                             val buffer = ByteArray(65536)
                             while (true) {
                                 check(!cancelled.get()) { "Descarga cancelada." }
-                                check(System.nanoTime() - started < 45L * 60 * 1_000_000_000) { "Descarga supera 45 minutos. Archivo parcial descartado; sin reintento automático." }
+                                check(System.nanoTime() - started < 90L * 60 * 1_000_000_000) { "Descarga supera 90 minutos. Archivo parcial descartado; sin reintento automático." }
                                 val count = input.read(buffer); if (count < 0) break
                                 total += count
                                 require(total <= limit) { "Descarga supera el límite de tamaño." }

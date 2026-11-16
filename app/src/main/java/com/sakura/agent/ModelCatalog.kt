@@ -27,3 +27,13 @@ object ModelCatalog {
             "Solo checkpoint para evaluación externa: puede requerir encoder/VAE y más memoria. Sin generación local en Sakura; 8 GB no garantiza viabilidad.")
     )
 }
+
+/** First-run model: downloaded once by the app, verified, then kept private. Never bundled in the APK. */
+object StarterModel {
+    const val AUTO_KEY = "starter_auto_download"
+    const val ATTEMPT_KEY = "starter_attempted"
+    const val DONE_KEY = "starter_completed"
+    const val AUTO_LOAD_KEY = "starter_auto_load"
+    val entry: CatalogModel = ModelCatalog.entries.first { it.file == "qwen2.5-1.5b-instruct-q4_k_m.gguf" }
+    fun matches(name: String): Boolean = name.contains("qwen2.5-1.5b-instruct-q4_k_m", ignoreCase = true)
+}

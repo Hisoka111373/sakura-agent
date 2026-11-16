@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -72,6 +73,9 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); voice.close() }
     }
+    LaunchedEffect(vm.speech) {
+        vm.speech?.let { voice.speak(it.text, vm.internetAllowed) }
+    }
     val audioPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (it) voice.dictate(vm.internetAllowed) else vm.notice("Sin permiso de micrófono. Puedes escribir.")
     }
@@ -90,9 +94,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(Modifier.size(44.dp), shape = CircleShape, color = Pink.copy(alpha = 0.18f)) {
-                    Image(painterResource(R.drawable.sakura_avatar),"Mascota Sakura",contentScale=ContentScale.Crop)
-                }
+                SakuraMascot(size = 46.dp, speaking = vm.starterDownloading || vm.generating)
                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
                     Text("SAKURA AGENT", color = Pink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                     Text(if(vm.skills.config.provider != "Local") "API opcional · ${vm.skills.config.provider}" else if (vm.loadedModel != null) "IA local · ${vm.level}" else "Tu espacio para aprender y crear", color = Aqua, fontSize = 12.sp)
@@ -100,7 +102,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 TextButton(onClick = { voice.stop(); vm.notice("Voz detenida.") }) { Text("Silencio") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Jardín", "Chat", "Agente", "Skills", "Buscar", "Pantalla", "APIs", "Plan", "Memoria", "Modelos", "Descargas", "Crear", "Mensajes", "Herramientas", "GitHub", "Privacidad").forEach { page ->
+                listOf("Jardín", "Chat", "Modelos", "Skills", "APIs", "Buscar", "Agente", "Privacidad", "Plan", "Memoria", "Descargas", "Crear", "Mensajes", "Herramientas", "Pantalla", "GitHub").forEach { page ->
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
@@ -108,7 +110,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
             Text(vm.status, color = Aqua, fontSize = 12.sp, modifier = Modifier.padding(vertical = 7.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (vm.page) {
-                    "Jardín" -> GardenPage(vm)
+                    "Jardín" -> GardenPage(vm, confirm)
                     "Agente" -> AgentPage(vm)
                     "Chat" -> ChatPage(vm, { message -> voice.speak(message, vm.internetAllowed) }, {
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
@@ -173,11 +175,25 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
     confirm: (String, () -> Unit) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Tu compañera, a tu ritmo", color = Ink, modifier = Modifier.weight(1f))
-            TextButton(onClick={vm.page="APIs"}) { Text(vm.skills.config.provider) }
+            SakuraMascot(size = 42.dp, speaking = vm.generating || vm.starterDownloading)
+            Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                Text("Tu compañera, a tu ritmo", color = Ink, fontWeight = FontWeight.SemiBold)
+                Text(if (vm.autoSpeak) "Voz automática activada" else "Voz bajo demanda", color = Aqua, fontSize = 11.sp)
+            }
+            TextButton(onClick = { vm.page = "APIs" }) { Text(vm.skills.config.provider) }
             TextButton(enabled = !vm.busy && vm.messages.isNotEmpty(), onClick = {
                 confirm("Borrar el chat abierto y su borrador. Las notas de memoria se conservan.", vm::clearChat)
             }) { Text("Nuevo chat") }
+        }
+        if (vm.starterDownloading) {
+            LinearProgressIndicator(progress = { vm.starterFraction }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+            Text(vm.starterProgress, color = Aqua, fontSize = 11.sp)
+        }
+        if (!vm.starterReady || vm.loadedModel == null) StarterModelCard(vm, confirm, compact = true)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+            Text("Escribe «busca …» y Sakura buscará de verdad. ", color = Aqua, fontSize = 11.sp)
+            TextButton(onClick = { vm.setAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
+            TextButton(onClick = { vm.page = "Modelos" }) { Text("Modelos") }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(vm.messages.asReversed()) { message -> MessageBubble(message) { speak(message.text) } }
@@ -185,29 +201,30 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
                 SakuraHero("Hola, soy Sakura.","Cuéntame tu idea. GGUF local o API elegida; las acciones siempre bajo tu control.",true)
             }
         }
-        val detected=vm.skills.selected()
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
-            Text("${if(vm.draft.isBlank() && vm.skills.manualSkill==null) "Última skill" else "Skill prevista"}: ${detected?.name ?: if(vm.draft.isBlank()) vm.skills.activeSkill else "General"} · ${if(vm.skills.manualSkill==null) "automática" else "manual"}",color=Aqua,fontSize=12.sp)
-            TextButton(enabled=!vm.busy,onClick=vm.skills::automatic) { Text("Auto") }
-            TextButton(enabled=!vm.busy,onClick={vm.page="Skills"}) { Text("Cambiar") }
+        val detected = vm.skills.selected()
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+            Text("${if(vm.draft.isBlank() && vm.skills.manualSkill==null) "Última skill" else "Skill prevista"}: ${detected?.name ?: if(vm.draft.isBlank()) vm.skills.activeSkill else "General"} · ${if(vm.skills.manualSkill==null) "automática" else "manual"}", color = Aqua, fontSize = 12.sp)
+            TextButton(enabled = !vm.busy, onClick = vm.skills::automatic) { Text("Auto") }
+            TextButton(enabled = !vm.busy, onClick = { vm.page = "Skills" }) { Text("Cambiar") }
         }
         if (vm.generating) TextButton(onClick = vm::cancelGeneration) { Text("Detener generación") }
-        if (vm.busy && vm.skills.config.provider != "Local") TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición nube") }
-        if (vm.draft.isNotBlank()) TextButton(enabled=!vm.busy,onClick={vm.skills.route(vm.draft)}) { Text("Preparar como búsqueda (sin enviarla al modelo)") }
+        if (vm.busy && vm.skills.config.provider != "Local") TextButton(onClick = vm.skills::cancel) { Text("Cancelar petición nube") }
+        if (vm.draft.isNotBlank()) TextButton(enabled = !vm.busy, onClick = { vm.skills.route(vm.draft) }) { Text("Preparar como búsqueda (sin enviarla al modelo)") }
         Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(enabled = !vm.busy, onClick = dictate) { Icon(Icons.Default.Mic, "Dictar o terminar dictado", tint = Aqua) }
             OutlinedTextField(value = vm.draft, onValueChange = { vm.draft = it }, enabled = !vm.busy,
-                modifier = Modifier.weight(1f), placeholder = { Text("Escribe o dicta…") }, maxLines = 5)
-            IconButton(enabled = !vm.busy && vm.draft.isNotBlank(), onClick = send) { Icon(Icons.AutoMirrored.Filled.Send, "Enviar local o revisar petición API", tint = Pink) }
+                modifier = Modifier.weight(1f), placeholder = { Text("Escribe, dicta o pide «busca …»") }, maxLines = 5)
+            IconButton(enabled = !vm.busy && vm.draft.isNotBlank(), onClick = send) { Icon(Icons.AutoMirrored.Filled.Send, "Enviar local, buscar o revisar API", tint = Pink) }
         }
-        Text("El dictado no envía mensajes. El chat se mantiene solo durante esta sesión.", fontSize = 11.sp, color = Ink.copy(alpha = 0.6f), modifier = Modifier.padding(top = 6.dp))
+        Text("El dictado no envía mensajes. El chat se mantiene solo durante esta sesión. La búsqueda pide confirmación.", fontSize = 11.sp, color = Ink.copy(alpha = 0.6f), modifier = Modifier.padding(top = 6.dp))
     }
 }
 
 @Composable
 private fun MessageBubble(message: ChatMessage, onSpeak: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromSakura) Arrangement.Start else Arrangement.End) {
-        Card(Modifier.fillMaxWidth(0.92f), colors = CardDefaults.cardColors(containerColor = if (message.fromSakura) Panel else Pink.copy(alpha = 0.18f)), shape = RoundedCornerShape(18.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromSakura) Arrangement.Start else Arrangement.End, verticalAlignment = Alignment.Bottom) {
+        if (message.fromSakura) SakuraMascot(size = 30.dp, modifier = Modifier.padding(end = 6.dp))
+        Card(Modifier.fillMaxWidth(if (message.fromSakura) 0.82f else 0.92f), colors = CardDefaults.cardColors(containerColor = if (message.fromSakura) Panel else Pink.copy(alpha = 0.18f)), shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 SelectionContainer(Modifier.weight(1f)) { Text(message.text, color = if (message.fromSakura) Ink else Pink, fontSize = 15.sp) }
                 if (message.fromSakura) IconButton(onClick = onSpeak) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Leer respuesta", tint = Aqua) }
@@ -248,23 +265,60 @@ private fun MemoryPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Uni
 
 @Composable
 private fun ModelsPage(vm: SakuraViewModel, choose: () -> Unit, confirm: (String, () -> Unit) -> Unit) {
+    val context = LocalContext.current
+    var catalogQuery by remember { mutableStateOf("") }
+    val catalog = ModelCatalog.entries.filter { model ->
+        catalogQuery.isBlank() || listOf(model.title, model.category, model.license).any {
+            it.contains(catalogQuery.trim(), ignoreCase = true)
+        }
+    }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Info("Motor llama.cpp en CPU · Android 13+ ARM64. Qwen2.5 3B Q4_K_M es el candidato inicial para tu teléfono de 8 GB; prueba 1.5B si resulta lento o consume demasiada RAM. Archivo ≠ memoria necesaria. En Descargas tienes el catálogo con licencia, tamaño y hash. No se promete rapidez. Importación: 2.5 GB; contexto: 2048 tokens.") }
-        item { Row { TextButton(onClick = { vm.page = "Descargas" }) { Text("Catálogo y descargas") }; TextButton(enabled = !vm.busy,onClick = vm::memoryStats) { Text("Medir RAM actual") } } }
+        item { StarterModelCard(vm, confirm) }
+        item { Info("Motor llama.cpp en CPU · Android 13+ ARM64. El modelo inicial se descarga una vez y queda en el almacenamiento privado; la APK no incluye pesos. Archivo ≠ memoria necesaria. No se promete rapidez. Importación: 2.5 GB; contexto: 2048 tokens.") }
+        item { Row { TextButton(onClick = { vm.page = "Descargas" }) { Text("Descargas y GGUF personalizado") }; TextButton(enabled = !vm.busy, onClick = vm::memoryStats) { Text("Medir RAM actual") } } }
         item { Button(enabled = !vm.busy, onClick = choose) { Text("Importar GGUF seleccionado · local") } }
+        item { Text("Modelos instalados", color = Pink, fontWeight = FontWeight.Bold) }
         items(vm.models, key = { it.id }) { model ->
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(model.name, color = Pink, fontWeight = FontWeight.Bold)
-                    Text("${model.bytes / (1024 * 1024)} MiB · ${if (vm.loadedModel?.id == model.id) "cargado" else "en almacenamiento privado"}")
+                    Text("${model.bytes / (1024 * 1024)} MiB · ${if (vm.loadedModel?.id == model.id) "cargado" else "en almacenamiento privado"}${if (StarterModel.matches(model.name)) " · modelo inicial" else ""}")
                     Row {
-                        TextButton(enabled = !vm.busy, onClick = { confirm("Cargar ${model.name}. Se liberará el modelo anterior y se borrará el chat abierto al completar la carga.", { vm.loadModel(model) }) }) { Text("Cargar") }
+                        TextButton(enabled = !vm.busy && vm.loadedModel?.id != model.id, onClick = { confirm("Cargar ${model.name}. Se liberará el modelo anterior y se borrará el chat abierto al completar la carga.", { vm.loadModel(model) }) }) { Text("Cargar") }
                         TextButton(enabled = !vm.busy, onClick = { confirm("Borrar ${model.name} de Sakura y liberarlo si está cargado. Tu archivo original no cambia.", { vm.deleteModel(model) }) }) { Text("Borrar archivo") }
                     }
                 }
             }
         }
         item { TextButton(enabled = !vm.busy && vm.loadedModel != null, onClick = vm::unloadModel) { Text("Liberar modelo de RAM") } }
+        item { HorizontalDivider() }
+        item { Text("Catálogo para descargar", color = Pink, fontWeight = FontWeight.Bold) }
+        item { Field("Filtrar catálogo por nombre, tipo o licencia", catalogQuery, { catalogQuery = it.take(80) }, true) }
+        items(catalog, key = { it.url }) { model ->
+            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(model.title, color = Pink, fontWeight = FontWeight.Bold)
+                    Text("${model.category} · ${"%.2f".format(model.bytes / 1e9)} GB · ${model.license}", fontSize = 12.sp)
+                    Text(model.warning, fontSize = 12.sp)
+                    SelectionContainer { Text(model.card, fontSize = 11.sp) }
+                    Row {
+                        TextButton(enabled = !vm.busy, onClick = {
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(model.card))); vm.notice("Se abrió la tarjeta externa; revisa licencia y condiciones.") }
+                            catch (_: Exception) { vm.notice("No hay navegador disponible.") }
+                        }) { Text("Tarjeta / licencia") }
+                        Button(enabled = !vm.busy && vm.internetAllowed, onClick = { vm.features.prepareDownload(model.url, "Modelo", model) }) {
+                            Text(if (model.category == "Chat") "Descargar y luego cargar" else "Descargar")
+                        }
+                    }
+                }
+            }
+        }
+        if (vm.features.downloading) item {
+            Column {
+                Text(vm.features.transfer)
+                OutlinedButton(onClick = vm.features::cancelDownload) { Text("Cancelar descarga") }
+            }
+        }
     }
 }
 
@@ -347,6 +401,23 @@ private fun PrivacyPage(vm: SakuraViewModel, onInternet: (Boolean) -> Unit) {
             Switch(checked = vm.internetAllowed, enabled = !vm.busy || vm.internetAllowed, onCheckedChange = onInternet)
         }
         Text("Desactivado al iniciar cada sesión. Este interruptor controla las operaciones de Sakura, no es un firewall para Android ni para las apps abiertas.", fontSize = 12.sp)
+        Text("Voz, mascota y modelo", color = Pink, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Leer respuestas automáticamente", Modifier.weight(1f))
+            Switch(checked = vm.autoSpeak, enabled = !vm.busy, onCheckedChange = vm::setAutoSpeak)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Descargar modelo inicial automáticamente", Modifier.weight(1f))
+            Switch(checked = vm.autoDownloadStarter, enabled = !vm.busy, onCheckedChange = vm::setAutoDownloadStarter)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Cargar modelo inicial al iniciar", Modifier.weight(1f))
+            Switch(checked = vm.autoLoadStarter, enabled = !vm.busy, onCheckedChange = vm::setAutoLoadStarter)
+        }
+        Row {
+            TextButton(onClick = vm::speakGreeting) { Text("Probar voz de Sakura") }
+            TextButton(onClick = { vm.page = "Modelos" }) { Text("Centro de modelos") }
+        }
         Text("Aprendizaje y personalidad", color = Pink, fontWeight = FontWeight.Bold)
         Row(Modifier.horizontalScroll(rememberScrollState())) {
             AgentPolicy.levels.forEach { level ->

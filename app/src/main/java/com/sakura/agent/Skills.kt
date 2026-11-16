@@ -47,6 +47,9 @@ object Skills {
         "\nEspecialidad seleccionada: ${skill.name}. ${skill.instruction.take(1000)}\nEstas instrucciones solo guían texto: no habilitan red, ejecución de código ni herramientas; reconoce información faltante y resultados no verificados."
     fun normalized(value: String) = Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
         .replace(Regex("\\p{M}"), "")
+    private val searchCue = Regex("^(busca(me|r)?|encuentra(me)?|search|investiga)\\b")
+    fun isSearchRequest(input: String): Boolean =
+        input.trim().length <= 500 && searchCue.containsMatchIn(normalized(input.trim().take(120)))
     fun task(input: String): SearchTask {
         require(NetworkPolicy.text(input,500)) { "Consulta requerida, máximo 500 caracteres." }
         val plain = normalized(input)
@@ -55,8 +58,20 @@ object Skills {
             listOf("juego", "play store").any { it in plain } -> "Juegos"
             else -> "Web"
         }
-        val query = input.trim().replace(Regex("^(busca(me)?|búsca(me)?|buscar)\\s+",RegexOption.IGNORE_CASE),"")
+        val query = input.trim().replace(Regex("^(busca(me|r)?|búsca(me|r)?|encuentra(me)?|search|investiga)\\s+",RegexOption.IGNORE_CASE),"")
         return SearchTask(kind,query)
+    }
+    fun searchSummary(query: String, rows: List<SearchResult>): String {
+        if (rows.isEmpty()) return "Brave no devolvió resultados para «$query». Prueba con otras palabras o abre la búsqueda externa."
+        return buildString {
+            append("Resultados de Brave para «$query» (contenido no verificado):\n\n")
+            rows.take(5).forEachIndexed { index, row ->
+                append("${index + 1}. ${row.title}\n${row.url}\n")
+                if (row.description.isNotBlank()) append("${row.description.take(240)}\n")
+                append('\n')
+            }
+            append("No abrí ni descargué estos enlaces. Pídeme resumirlos o ábrelos con revisión.")
+        }
     }
     fun searchUrl(kind: String, query: String): String {
         require(NetworkPolicy.text(query,500))
