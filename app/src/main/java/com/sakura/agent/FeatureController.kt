@@ -90,6 +90,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         require(NetworkPolicy.secret(value)) { "Valor inválido." }
         withContext(Dispatchers.IO) { store.write(key,value.ifBlank { null }) }
         configured = if (value.isEmpty()) configured - key else configured + key
+        if(key == "gemini_key") vm.skills.invalidateConnection()
         vm.notice("Configuración guardada localmente. No se ha probado ni conectado el servicio.")
     }
 
@@ -114,12 +115,6 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
             } finally { downloading = false }
         }
     }
-    /** First-run download bypasses the confirmation dialog but still uses the same SHA/size checks. */
-    internal suspend fun downloadStarter(model: CatalogModel, progress: (Long, Long) -> Unit): DownloadResult =
-        withContext(Dispatchers.IO) {
-            downloads.reset()
-            downloads.download(context, model.url, "Modelo", model, progress = progress)
-        }
     fun cancelDownload() { downloads.cancel(); vm.notice("Cancelación de descarga solicitada.") }
     fun prepareDelete(file: DownloadedFile) = prepare("Borrar ${file.name} del almacenamiento privado de Sakura. No se puede deshacer.",false) {
         withContext(Dispatchers.IO) {

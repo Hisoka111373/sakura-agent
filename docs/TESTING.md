@@ -6,13 +6,14 @@ La validación realizada es estática/JVM, no una certificación funcional. No s
 usado un teléfono ni un modelo real. La versión 0.2 compiló APK ARM64 en Actions
 (run 43304984898) y se integró mediante PR #3. 0.3 también aprobó CI run 43551453495
 y se integró por PR #4. 0.4 aprobó CI43553143121 y se integró por PR #5.
-0.5 aprobó CI43638461195 y se integró por PR #7. Para 0.6 revisa su propio CI;
-no basta un build anterior. Pruebas adicionales en [FEATURES-0.6.md](FEATURES-0.6.md)
+0.5 aprobó CI43638461195 y se integró por PR #7.0.6 aprobó CI43749469074 y se integró
+por PR #8. Para0.7 revisa su propio CI; no basta un build anterior.
+Pruebas adicionales en [FEATURES-0.7.md](FEATURES-0.7.md) y [FEATURES-0.6.md](FEATURES-0.6.md)
 y [FEATURES-0.5.md](FEATURES-0.5.md), además de los documentos 0.3/0.4.
 
 Comprobaciones realizadas:
 
-1. `scripts/check-policy.sh`: 86 pruebas JUnit (reglas, red, catálogo, planes, skills, routing, protocolos, pantalla y agente), todas aprobadas.
+1. `scripts/check-policy.sh`:100 pruebas JUnit (reglas, red, catálogo, planes, skills, routing, protocolos, pantalla, agente y pensamiento), todas aprobadas.
 2. Kotlin 2.0.21 + plugin Compose 2.0.21: todos los archivos `.kt` de producción
    compilados a un JAR de comprobación, con android.jar API 35 y dependencias AndroidX.
    El JAR no se entrega como aplicación y no puede instalarse en Android.
@@ -20,6 +21,8 @@ Comprobaciones realizadas:
    `a2c942dcfeef6aea0863c63999cdbe27149d3078`. Se corrigió el uso obsoleto de
    `llama_model_params.use_mmap`, ausente en esta revisión.
 4. `bash -n` para ambos scripts y `git diff --check`: aprobados.
+5. Gemini real con TextSearchClient JVM de Sakura y clave privada: «Sakura conectada.»
+   No prueba conexión desde teléfono. La clave no se entrega en fuentes ni APK.
 
 El build 0.2 comprobó Gradle/empaquetado/enlazado ARM64; no prueba arranque, voz,
 firmas APK, Keystore, inferencia real ni escritura GitHub desde el teléfono.

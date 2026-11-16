@@ -2,8 +2,6 @@ package com.sakura.agent
 
 import android.app.Application
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,8 +14,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
-
-data class SpeechRequest(val id: Long, val text: String)
 
 class SakuraViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application
@@ -43,6 +39,13 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var generating by mutableStateOf(false)
         private set
+    var partialReply by mutableStateOf(""); private set
+    var generatedTokens by mutableStateOf(0); private set
+    var kawaii by mutableStateOf(true); private set
+    var mascotMotion by mutableStateOf(true); private set
+    var autoVoice by mutableStateOf(false); private set
+    var pendingSpeech by mutableStateOf(""); private set
+    private var generationId = 0
     var messages by mutableStateOf(emptyList<ChatMessage>())
         private set
     var memories by mutableStateOf(emptyList<Memory>())
@@ -67,25 +70,6 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var githubReport by mutableStateOf("")
         private set
-    var starterDownloading by mutableStateOf(false)
-        private set
-    var starterProgress by mutableStateOf("")
-        private set
-    var starterFraction by mutableStateOf(0f)
-        private set
-    var starterError by mutableStateOf("")
-        private set
-    var starterReady by mutableStateOf(false)
-        private set
-    var autoDownloadStarter by mutableStateOf(true)
-        private set
-    var autoLoadStarter by mutableStateOf(true)
-        private set
-    var autoSpeak by mutableStateOf(false)
-        private set
-    var speech by mutableStateOf<SpeechRequest?>(null)
-        private set
-    private val mainHandler = Handler(Looper.getMainLooper())
 
     init {
         work("Leyendo configuración local…") {
@@ -93,146 +77,59 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
                 Triple(store.memories(), store.read("level") ?: "Principiante", store.read("humor") != "false")
             }
             memories = saved.first; level = saved.second; humor = saved.third
+            withContext(Dispatchers.IO) {
+                kawaii = store.read("kawaii") != "false"
+                mascotMotion = store.read("mascot_motion") != "false"
+                autoVoice = store.read("auto_voice") == "true"
+            }
             hasToken = withContext(Dispatchers.IO) { !store.read("github_token").isNullOrBlank() }
-            autoSpeak = withContext(Dispatchers.IO) { store.read("auto_speak") == "true" }
-            autoDownloadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_KEY) != "false" }
-            autoLoadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_LOAD_KEY) != "false" }
             models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
             features.initialize()
             skills.initialize()
-            val existing = models.firstOrNull { StarterModel.matches(it.name) }
-            starterReady = existing != null
-            when {
-                existing != null && autoLoadStarter -> {
-                    status = "Cargando ${existing.name} en CPU…"
-                    runCatching { loadModelBlocking(existing) }
-                        .onFailure { starterError = it.message ?: "No se pudo cargar el modelo inicial."; status = "Modelo listo, pero no cargó: ${starterError.take(180)}" }
-                }
-                existing != null -> status = "Modelo inicial listo. Pulsa Cargar en Modelos."
-                autoDownloadStarter && models.isEmpty() && withContext(Dispatchers.IO) { store.read(StarterModel.ATTEMPT_KEY) != "true" } -> {
-                    status = "Primer inicio: preparando el modelo de Sakura…"
-                    runCatching { downloadStarterInternal() }
-                }
-                else -> status = "Sin modelo cargado. Descarga Qwen2.5 1.5B desde Modelos."
-            }
+            status = "Todo local. Importa y carga un modelo GGUF para conversar."
         }
     }
 
     fun notice(text: String) { status = text }
 
-    private suspend fun loadModelBlocking(model: ModelEntry) {
-        require(models.any { it.id == model.id }) { "El modelo no está en el almacenamiento privado." }
-        loadedModel = null
-        val start = android.os.SystemClock.elapsedRealtime()
-        withContext(nativeWorker) { native().nativeLoad(File(LocalFiles.modelDir(app), model.id).path) }
-        loadedModel = model; messages = emptyList()
-        status = "${model.name} cargado en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. CPU · contexto 2048 · máximo 384 tokens de salida."
-    }
-
-    private suspend fun downloadStarterInternal() {
-        if (starterDownloading) return
-        starterError = ""; starterDownloading = true; starterFraction = 0f
-        starterProgress = "Iniciando descarga de ${StarterModel.entry.title}…"
-        val previousInternet = internetAllowed
-        internetAllowed = true
-        try {
-            withContext(Dispatchers.IO) { store.write(StarterModel.ATTEMPT_KEY, "true") }
-            status = "Descargando ${StarterModel.entry.title} (${"%.2f".format(StarterModel.entry.bytes/1e9)} GB) desde Hugging Face…"
-            val result = features.downloadStarter(StarterModel.entry) { done, total ->
-                val fraction = if (total > 0) (done.toFloat()/total).coerceIn(0f,1f) else 0f
-                val text = "${done/(1024*1024)} MiB / ${if(total>0) "${total/(1024*1024)} MiB" else "tamaño desconocido"} · ${(fraction*100).toInt()}%"
-                mainHandler.post { starterProgress = text; starterFraction = fraction }
-            }
-            starterProgress = "Descarga verificada. Copiando a Modelos…"
-            withContext(Dispatchers.IO) { store.write(StarterModel.DONE_KEY, "true") }
-            refreshModels()
-            val entry = models.firstOrNull { it.id == result.file.name }
-                ?: error("El modelo se descargó pero no aparece en Modelos.")
-            starterReady = true
-            starterProgress = "Verificado. Cargando en CPU…"
-            status = "Modelo verificado. Cargando en CPU; puede tardar…"
-            loadModelBlocking(entry)
-            status = "Sakura lista: ${entry.name} cargado. Ya puedes conversar."
-        } catch (error: Exception) {
-            starterError = error.message ?: "No se pudo descargar el modelo inicial."
-            throw error
-        } finally {
-            starterDownloading = false; starterProgress = ""; starterFraction = 0f
-            internetAllowed = previousInternet
-        }
-    }
-
-    fun downloadStarter() {
-        if (busy) { status = "Espera a que termine la operación actual."; return }
-        work("Descargando el modelo inicial de Sakura…") { downloadStarterInternal() }
-    }
-
-    fun cancelStarter() {
-        if (!starterDownloading) return
-        features.cancelDownload()
-        status = "Cancelando descarga del modelo…"
-    }
-
-    fun downloadOrLoadStarter() {
-        val entry = models.firstOrNull { StarterModel.matches(it.name) }
-        if (entry == null) downloadStarter() else loadModel(entry)
-    }
-
-    fun updateAutoDownloadStarter(enabled: Boolean) = work("Guardando preferencia del modelo…") {
-        withContext(Dispatchers.IO) { store.write(StarterModel.AUTO_KEY, enabled.toString()) }
-        autoDownloadStarter = enabled
-        status = if (enabled) "El modelo inicial se descargará automáticamente tras instalar." else "Descarga automática desactivada; puedes descargarlo desde Modelos."
-    }
-
-    fun updateAutoLoadStarter(enabled: Boolean) = work("Guardando preferencia de carga…") {
-        withContext(Dispatchers.IO) { store.write(StarterModel.AUTO_LOAD_KEY, enabled.toString()) }
-        autoLoadStarter = enabled
-        status = if (enabled) "El modelo inicial se cargará al iniciar Sakura." else "Carga automática desactivada; usa Cargar en Modelos."
-    }
-
-    fun updateAutoSpeak(enabled: Boolean) = work("Guardando preferencia de voz…") {
-        withContext(Dispatchers.IO) { store.write("auto_speak", enabled.toString()) }
-        autoSpeak = enabled
-        status = if (enabled) "Sakura leerá sus respuestas en voz alta." else "Lectura automática desactivada."
-    }
-
-    fun requestSpeech(text: String) {
-        if (text.isBlank()) return
-        speech = SpeechRequest(System.nanoTime(), text.take(3500))
-    }
-
-    fun speakGreeting() {
-        requestSpeech(listOf(
-            "Hola, sempai. Soy Sakura. ¿Qué vamos a crear hoy?",
-            "Ya estoy aquí. Cuéntame tu idea y la hacemos florecer.",
-            "¡Sugoi! Estoy lista. ¿Empezamos con código, un plan o una búsqueda?",
-            "Qué gusto verte. Respira, escribe tu idea y vamos a tu ritmo."
-        ).random())
-    }
-
-    internal fun appendUser(text: String) {
-        messages = messages + ChatMessage(text, false)
-        draft = ""
-    }
-
-    internal fun appendAssistant(text: String) {
-        messages = messages + ChatMessage(text, true)
-        if (autoSpeak) requestSpeech(text)
-    }
-
     internal fun workFeature(label: String, block: suspend () -> Unit) = work(label, block)
     internal suspend fun generateAgentLocal(system: String, history: List<ChatMessage>): String {
         check(loadedModel != null) { "Carga un GGUF primero." }
         native().nativeResetCancellation(); generating = true
-        return withContext(nativeWorker) { native().generate(system,history) }
+        val effort = skills.config.effort
+        val callback = progress()
+        return withContext(nativeWorker) { native().generate(system,history,384,ThinkingPolicy.localTimeoutMs(effort),callback) }
+    }
+    private fun progress(): NativeProgress {
+        val id = ++generationId
+        partialReply = ""; generatedTokens = 0
+        return NativeProgress { count, bytes ->
+            val decoded = Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.IGNORE)
+                .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+            viewModelScope.launch {
+                if(id == generationId && generating && busy) {
+                    generatedTokens = count; partialReply = decoded
+                    status = if(count == 0) "Procesando contexto local… puedes detener." else "Generando localmente: $count tokens… respuesta parcial, no definitiva."
+                }
+            }
+        }
+    }
+    fun consumeSpeech(): String = pendingSpeech.also { pendingSpeech = "" }
+    fun mascotPreferences(newKawaii: Boolean, motion: Boolean, voice: Boolean) = work("Guardando preferencias de Sakura…") {
+        withContext(Dispatchers.IO) {
+            store.write("kawaii",newKawaii.toString()); store.write("mascot_motion",motion.toString()); store.write("auto_voice",voice.toString())
+        }
+        kawaii = newKawaii; mascotMotion = motion; autoVoice = voice
+        if(!voice) pendingSpeech = ""
+        status = "Preferencias guardadas. Voz automática solo con voz española local instalada, sin micrófono ni envío de texto a nube."
     }
     internal suspend fun refreshModels() { models = withContext(Dispatchers.IO) { LocalFiles.models(app) } }
     internal fun invalidateRepo() { repoFile = null; pendingEdit = null }
     internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
         check(messages == previous && draft == original) { "El borrador cambió; respuesta no insertada." }
         messages = previous + ChatMessage(original.trim(),false) + ChatMessage(answer,true)
+        if(autoVoice) pendingSpeech = answer
         draft = ""
-        if (autoSpeak) requestSpeech(answer)
     }
 
     fun proposePlan(goal: String) {
@@ -257,13 +154,14 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try { block() }
             catch (error: Exception) { status = "Error: ${error.message ?: error.javaClass.simpleName}" }
-            finally { busy = false; generating = false }
+            finally { busy = false; generating = false; generationId++; partialReply = ""; generatedTokens = 0 }
         }
     }
 
     fun setInternet(allowed: Boolean) {
         if (busy && allowed) return
         internetAllowed = allowed
+        if(!allowed) pendingSpeech = ""
         if (!allowed) { agent.stop(); pendingEdit = null; features.revokeNetwork(); features.close(); skills.cancel() }
         status = if (allowed) "GitHub, mensajería, descargas y generación nube pueden usar Internet con tus botones y confirmaciones." else "Red desautorizada en Sakura. Los servicios externos de Android tienen su propia configuración."
     }
@@ -304,7 +202,12 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadModel(model: ModelEntry) = work("Cargando modelo en CPU; puede tardar…") {
-        loadModelBlocking(model)
+        require(models.any { it.id == model.id })
+        loadedModel = null
+        val start = android.os.SystemClock.elapsedRealtime()
+        withContext(nativeWorker) { native().nativeLoad(File(LocalFiles.modelDir(app), model.id).path) }
+        loadedModel = model; messages = emptyList()
+        status = "${model.name} cargado en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. CPU · contexto 2048 · máximo 384 tokens de salida."
     }
 
     fun unloadModel() = work("Liberando modelo…") {
@@ -319,7 +222,6 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         }
         withContext(Dispatchers.IO) { check(File(LocalFiles.modelDir(app), model.id).delete()) { "No se pudo borrar el GGUF." } }
         models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
-        starterReady = models.any { StarterModel.matches(it.name) }
         status = "GGUF borrado del almacenamiento privado."
     }
 
@@ -327,25 +229,27 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun send() {
         if (busy || draft.isBlank()) return
-        if (skills.isSearchRequest(draft)) { skills.prepareChatSearch(); return }
         if (skills.config.provider != "Local") { skills.prepareChat(); return }
-        if (loadedModel == null) { status = "Descarga o carga un GGUF en Modelos. No hay respuestas simuladas."; return }
+        if (loadedModel == null) { status = "Importa y carga un GGUF en Modelos. No hay respuestas simuladas."; return }
         val text = draft.trim()
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
         val previous = messages
-        val history = previous.takeLast(6) + ChatMessage(text, false)
+        val effort = skills.config.effort
+        val history = previous.takeLast(ThinkingPolicy.chatHistory(effort)) + ChatMessage(text, false)
         val skill = skills.markSelected(text)
-        val system = AgentPolicy.systemPrompt(level, humor, memories) + Skills.guidance(skill)
+        val system = AgentPolicy.systemPrompt(level, humor, memories.takeLast(ThinkingPolicy.memories(effort))) + Skills.guidance(skill) +
+            ThinkingPolicy.guidance(effort) + if(kawaii) ThinkingPolicy.kawaii else ""
         draft = ""; messages = previous + ChatMessage(text, false)
         work("Sakura está pensando localmente…") {
             engine?.nativeResetCancellation()
             generating = true
             try {
                 val start = android.os.SystemClock.elapsedRealtime()
-                val answer = withContext(nativeWorker) { native().generate(system, history) }
+                val callback = progress()
+                val answer = withContext(nativeWorker) { native().generate(system, history,ThinkingPolicy.localTokens(effort),ThinkingPolicy.localTimeoutMs(effort),callback) }
                 messages = messages + ChatMessage(answer, true)
-                if (autoSpeak) requestSpeech(answer)
-                status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. Últimas tres parejas y doce notas en contexto; no es garantía de rendimiento."
+                if(autoVoice) pendingSpeech = answer
+                status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s · esfuerzo $effort. Contexto acotado; no es garantía de rendimiento."
             } catch (error: Exception) {
                 messages = previous; draft = text
                 throw error

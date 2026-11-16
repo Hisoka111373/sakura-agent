@@ -16,5 +16,12 @@ Chat: chip visible de skill detectada y opción de selección manual/automática
 Solo una instrucción breve se añade al contexto; ninguna skill ejecuta herramientas.
 Animación sutil de aparición, sin partículas continuas que gasten batería.
 
+0.7: el avatar existente respira/flota y gira suavemente; pulso al hablar con TTS
+real. Movimientos offline de transformaciones, no Live2D ni nueva ilustración.
+Pausar en segundo plano y permitir desactivar movimiento. Tono kawaii cálido,
+sin infantilización ni perder claridad. Selector Local/En línea y pensamiento
+Bajo/Alto visible en Chat/Agente, progreso parcial diferenciado de respuesta final.
+Voz automática opcional, solo voz local y primer plano; botón Silencio visible.
+
 No hay render móvil físico/emulador disponible; validar Kotlin/Compose/API35,
 JVM/recursos y CI Android. No afirmar prueba visual en dispositivo.

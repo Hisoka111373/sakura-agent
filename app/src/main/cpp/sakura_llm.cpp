@@ -2,6 +2,7 @@
 #include <llama.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -17,9 +18,15 @@ llama_sampler *sampler = nullptr;
 bool initialized = false;
 constexpr int contextSize = 2048;
 constexpr int batchSize = 256;
-constexpr int outputLimit = 384;
+std::atomic<int64_t> deadlineNanos{0};
+int64_t nowNanos() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+bool timedOut() { const auto deadline = deadlineNanos.load(); return deadline != 0 && nowNanos() >= deadline; }
+struct DeadlineGuard { ~DeadlineGuard() { deadlineNanos.store(0); } };
+struct BatchGuard { llama_batch &batch; ~BatchGuard() { llama_batch_free(batch); } };
 
-bool abortDecode(void *) { return cancelled.load(); }
+bool abortDecode(void *) { return cancelled.load() || timedOut(); }
 bool loadProgress(float, void *) { return !cancelled.load(); }
 
 void unload() {
@@ -31,6 +38,16 @@ void unload() {
 
 void fail(JNIEnv *env, const char *message) {
     env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
+}
+
+void progress(JNIEnv *env, jobject callback, jmethodID method, int tokens, const std::string &text) {
+    if (!callback) return;
+    auto bytes = env->NewByteArray(text.size());
+    if (!bytes) throw std::runtime_error("Progress allocation failed.");
+    env->SetByteArrayRegion(bytes, 0, text.size(), reinterpret_cast<const jbyte *>(text.data()));
+    env->CallVoidMethod(callback, method, tokens, bytes);
+    env->DeleteLocalRef(bytes);
+    if (env->ExceptionCheck()) { env->ExceptionClear(); throw std::runtime_error("Progress callback failed."); }
 }
 
 std::string bytes(JNIEnv *env, jbyteArray value) {
@@ -90,9 +107,10 @@ std::vector<llama_token> tokenize(const std::string &text) {
 
 bool decode(const std::vector<llama_token> &tokens) {
     auto batch = llama_batch_init(batchSize, 0, 1);
+    BatchGuard batchGuard{batch};
     bool ok = true;
     for (size_t offset = 0; offset < tokens.size(); offset += batchSize) {
-        if (cancelled.load()) { ok = false; break; }
+        if (cancelled.load() || timedOut()) { ok = false; break; }
         const int count = std::min<size_t>(batchSize, tokens.size() - offset);
         batch.n_tokens = count;
         for (int i = 0; i < count; ++i) {
@@ -103,7 +121,6 @@ bool decode(const std::vector<llama_token> &tokens) {
         }
         if (llama_decode(ctx, batch) != 0) { ok = false; break; }
     }
-    llama_batch_free(batch);
     return ok;
 }
 } // namespace
@@ -112,6 +129,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring path) {
     std::lock_guard<std::mutex> guard(mutex);
     cancelled.store(false);
+    deadlineNanos.store(0);
     unload();
     try {
         if (!initialized) { llama_backend_init(); initialized = true; }
@@ -140,20 +158,33 @@ Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring path)
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArray system,
-                                                jobjectArray roles, jobjectArray texts) {
+                                                jobjectArray roles, jobjectArray texts,
+                                                jint outputLimit, jlong timeoutMs, jobject callback) {
     std::lock_guard<std::mutex> guard(mutex);
+    DeadlineGuard deadlineGuard;
     try {
+        if (outputLimit < 1 || outputLimit > 384 || timeoutMs < 1000 || timeoutMs > 120000)
+            throw std::runtime_error("Invalid generation limits.");
+        deadlineNanos.store(nowNanos() + timeoutMs * 1000000);
+        jmethodID method = nullptr;
+        if (callback) {
+            auto cls = env->GetObjectClass(callback);
+            method = env->GetMethodID(cls, "onProgress", "(I[B)V"); env->DeleteLocalRef(cls);
+            if (!method) throw std::runtime_error("Invalid progress callback.");
+        }
         if (!model || !ctx || !sampler) throw std::runtime_error("Load a GGUF model first.");
         auto tokens = tokenize(format(env, system, roles, texts));
-        if (tokens.size() + outputLimit >= contextSize)
+        if (tokens.size() + static_cast<size_t>(outputLimit) >= contextSize)
             throw std::runtime_error("Context limit exceeded (2048 tokens). Start a new chat or shorten the message and memories.");
         llama_memory_clear(llama_get_memory(ctx), true);
         llama_sampler_reset(sampler);
-        if (!decode(tokens)) throw std::runtime_error("Prompt processing failed or was cancelled.");
+        progress(env,callback,method,0,"");
+        if (!decode(tokens)) throw std::runtime_error(timedOut() ? "Tiempo de contexto agotado. Acorta mensaje/notas o usa GGUF 1.5B y modo Bajo." : "Prompt processing failed or was cancelled.");
         auto batch = llama_batch_init(1, 0, 1);
+        BatchGuard batchGuard{batch};
         std::string output;
         bool decodeFailed = false;
-        for (int step = 0; step < outputLimit && !cancelled.load(); ++step) {
+        for (int step = 0; step < outputLimit && !cancelled.load() && !timedOut(); ++step) {
             const auto token = llama_sampler_sample(sampler, ctx, -1);
             const auto vocab = llama_model_get_vocab(model);
             if (llama_vocab_is_eog(vocab, token)) break;
@@ -164,12 +195,13 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArra
                 size = llama_token_to_piece(vocab, token, piece.data(), piece.size(), 0, false);
             }
             if (size > 0) output.append(piece.data(), size);
+            if (callback && (step == 0 || (step + 1) % 4 == 0)) progress(env,callback,method,step+1,output);
             batch.n_tokens = 1; batch.token[0] = token;
             batch.pos[0] = tokens.size() + step;
             batch.n_seq_id[0] = 1; batch.seq_id[0][0] = 0; batch.logits[0] = true;
             if (llama_decode(ctx, batch) != 0) { decodeFailed = true; break; }
         }
-        llama_batch_free(batch);
+        if (timedOut()) throw std::runtime_error("Tiempo de respuesta agotado. No se guardó la respuesta parcial. Usa modo Bajo, un GGUF menor o nube.");
         if (cancelled.load()) throw std::runtime_error("Generation cancelled.");
         if (decodeFailed) throw std::runtime_error("Generation failed. No partial result was saved.");
         if (output.empty()) throw std::runtime_error("The model returned no text.");

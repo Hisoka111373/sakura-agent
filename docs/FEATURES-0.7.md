@@ -1,71 +1,116 @@
-# Sakura 0.7 — modelo bajo demanda, voz y mascota
+# Sakura 0.7 — Gemini, mascota viva y respuesta acotada
 
-## Objetivo
+Conserva Kotlin/Compose, Jardín, 93 skills y agente supervisado de 0.6.
 
-Mantener una APK ligera (<100 MB) sin pesos GGUF dentro. En el primer inicio la
-app descarga el modelo recomendado, lo verifica, lo copia a su almacenamiento
-privado y lo carga. La experiencia final es la de una app “completa”, pero el
-repositorio y la APK no crecen 1,1 GB.
+## Gemini comprobado sin incluir secretos en la APK
 
-## Modelo inicial
+Se comprobó la clave entregada por formulario seguro contra Google Gemini:
+listado de modelos HTTP200 y respuesta real **«Sakura conectada.»** con
+`gemini-3.1-flash-lite`. También pasó una petición con el **TextSearchClient
+real de Sakura** desde JVM (~1.35 s en esa única prueba). No es una medida de
+rendimiento de tu móvil ni una garantía de disponibilidad/precio futuros.
 
-- Qwen2.5 1.5B Instruct · Q4_K_M · Apache 2.0.
-- Archivo: `qwen2.5-1.5b-instruct-q4_k_m.gguf`.
-- Tamaño: 1.117.320.736 bytes.
-- SHA-256: `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`.
-- URL: `https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/91cad51170dc346986eccefdc2dd33a9da36ead9/qwen2.5-1.5b-instruct-q4_k_m.gguf`.
-- Se descarga a `noBackupFilesDir/models`, con archivo `.part`, límite de espacio,
-  timeout de 90 minutos, cancelación y SHA-256 obligatorio. No se ejecuta ni se
-  comparte con terceros; solo se hace la petición HTTP a Hugging Face.
-- Tras verificar, se carga con llama.cpp en CPU (contexto 2048, salida máxima 384).
-- Si falla, no se reintenta en bucle: queda un botón de reintento. La descarga
-  automática se puede desactivar en Privacidad.
+Una prueba inicial con96 tokens y thinking LOW no dejó texto visible: el presupuesto
+se consumió en pensamiento. Se corrigió a MINIMAL y mayor presupuesto; no se finge
+una respuesta cuando Gemini devuelve solo pensamiento o agota la salida.
 
-## Voz
+**La clave no está en fuentes, GitHub, ZIP ni APK.** En el teléfono:
+1. Privacidad → credenciales de servicios → `gemini_key` → campo oculto → Guardar cifrado.
+2. APIs → Gemini → `gemini-3.1-flash-lite` → Guardar selección.
+3. Autoriza Internet en Privacidad.
+4. APIs → Revisar prueba real de Gemini → lee JSON/coste y confirma.
 
-- `autoSpeak` persistente: lee respuestas locales y de API.
-- Botón “Escuchar saludo” en Jardín y “Voz auto” en Chat.
-- `SakuraVoice` sigue priorizando voces españolas locales; si no hay, avisa y solo
-  usa una voz de red cuando el interruptor de Internet está activo.
-- No se sube audio a Sakura. El dictado usa el servicio de Android y nunca envía
-  el mensaje automáticamente.
+Se guarda en Android Keystore/AES-GCM. La prueba móvil no incluye chat, recuerdos,
+archivos ni pantalla. Cada petición posterior exige su propia revisión. No guardar
+una clave en una APK pública es intencionado: cualquiera puede extraerla.
 
-## Mascota y Jardín
+## Cambio Local / En línea y pensamiento
 
-- Animación Compose: zoom/parallax lento del jardín, pétalos dibujados en Canvas,
-  respiración y brillo del avatar.
-- Avatar animado en cabecera, Jardín, Chat y burbujas de Sakura.
-- No se añaden GIFs, videos ni recursos de red; todo se dibuja en el dispositivo.
+Selector visible en Chat, Agente y APIs. Guarda el último proveedor online separado
+del modo local: cambiar de modo no borra el GGUF ni manda una petición. Local sigue
+requiriendo modelo cargado; online requiere proveedor/modelo y clave válidos.
 
-## Modelos visibles
+| Ajuste | Bajo | Alto |
+|---|---|---|
+| Chat local | Hasta192 tokens, una pareja anterior, cuatro notas | Hasta384 tokens, tres parejas, doce notas |
+| Límite local cooperativo |45 s|90 s|
+| Agente local |Hasta384 tokens para JSON, mismo límite temporal del nivel|Hasta384 tokens,90 s|
+| Gemini 3.1 Flash-Lite |MINIMAL,512 tokens totales|HIGH,2048 tokens totales|
+| Otros proveedores de texto |768 tokens|1024 tokens|
 
-- Pestaña Modelos movida junto a Chat.
-- Tarjeta del modelo inicial con progreso, cancelar, reintentar y cargar.
-- Catálogo filtrable con licencia, tamaño, advertencia, tarjeta externa y descarga
-  con confirmación.
-- Modelos instalados con Cargar/Borrar y medición de RAM.
-- Descargas y GGUF personalizado siguen disponibles en su pestaña.
+En Gemini el presupuesto incluye pensamiento y texto. Alto puede aumentar latencia
+y consumo; no revela razonamiento interno. Otros modelos Gemini conservan el thinking
+del proveedor: no se envía un parámetro inventado para modelos no comprobados.
 
-## Claves API
+## Esperas locales y progreso
 
-- En APIs: proveedor, modelos sugeridos, campo de clave con mostrar/ocultar,
-  guardar/borrar cifrado y Probar conexión.
-- Probar conexión envía una petición mínima revisada y puede consumir cuota.
-- En Privacidad: selector de credenciales de servicios con el mismo campo oculto.
+- JNI informa progreso y respuesta parcial mientras genera, hasta cada cuatro tokens;
+  ya no se muestra únicamente un spinner durante toda la respuesta.
+- Contexto/historia y longitud menores en Bajo reducen el trabajo solicitado.
+- Deadline cooperativo comprobado también en prefill y callback de abort de llama.cpp;
+  al agotarlo se muestra un error útil, se restaura el borrador y no se guarda parcial.
+- Cancelación sigue disponible; resultados tardíos de progreso se descartan por ID.
+- Batch JNI usa RAII para liberar memoria incluso si falla un callback.
 
-## Búsqueda desde el chat
+No es un benchmark ni prueba de velocidad física. El deadline no es un watchdog capaz
+de matar una biblioteca nativa bloqueada; depende del abort cooperativo de llama.cpp.
+Si sigue siendo lento, usa GGUF1.5B Q4, mensajes cortos y Bajo, o Gemini. Cargar pesos
+grandes también puede tardar; no prometemos inferencia rápida con cualquier móvil8GB.
 
-- Detecta «busca», «búscame», «buscar», «encuentra», «search» e «investiga».
-- Con clave Brave: confirmación y hasta 5 resultados en el chat.
-- Sin clave Brave: confirmación y apertura de YouTube, navegador o Play Store.
-- No se abren ni descargan resultados automáticamente; son contenido no confiable.
-- La búsqueda no sustituye una verificación de fuentes.
+## Mascota y voz
 
-## Límites
+Avatar original offline: flotación/respiración, giro suave y pulso cuando el TTS
+real está hablando. Pausa en segundo plano; movimiento desactivable en Privacidad.
+No es Live2D, nuevos frames de anime ni sincronización real de labios.
 
-- Sigue sin probarse en un teléfono real en esta entrega.
-- 8 GB de RAM es un objetivo, no una garantía. El archivo de 1,1 GB no es la RAM
-  que usará el modelo.
-- La descarga puede fallar por red, cuota, DNS o espacio; se muestra el error.
-- La APK es debug y no está firmada para tienda.
-- No se incluyen pesos ni se redistribuyen; se descargan desde el origen oficial.
+- Tono kawaii suave en respuestas, activado por defecto y desactivable. Mantiene
+  precisión y tono de compañera adulta; no infantiliza ni inventa acciones.
+- Saludar en Chat usa voz española local instalada y un saludo corto.
+- Ritmo/pitch ajustados al tono kawaii; calidad/personaje dependen del motor Android.
+- Lectura automática **opcional y confirmada**, solo voz local y primer plano.
+  No activa micrófono ni manda texto a TTS en nube. Si no hay voz local, informa.
+- Silencio, cambiar a segundo plano y desautorizar red detienen voz. Utterances
+  tienen ID para que callbacks antiguos no animen una lectura nueva.
+
+## Abrir apps, escribir y buscar
+
+En Chat, **Abrir apps / escribir / buscar con Agente** lleva tu petición al objetivo
+sin enviarla ni borrar el borrador. Tú inicias y revisas cada propuesta. Agente puede
+listar/abrir actividades de inicio visibles de APK **ya instaladas**, consultar Brave
+con clave o abrir búsqueda oficial externa con confirmación.
+
+Pantalla permite ver controles accesibles y escribir/buscar en apps autorizadas
+YouTube/Chrome/Firefox/Play Store, mediante sesión limitada y revisión individual.
+No controla cualquier APK, no instala archivos APK, no elude restricciones Android,
+no automatiza pagos/login/mensajes/permisos y no garantiza reconocimiento de todo control.
+Las peticiones web no se ejecutan en secreto desde una respuesta normal de Chat.
+
+## APK en GitHub
+
+Se compila únicamente en GitHub Actions, no en el sandbox. Tras CI aprobado se publica
+el archivo verificado en `apk/`, mediante commit/PR separado del código para no
+recompilar únicamente por añadir una APK. Allí se indica commit fuente, SHA-256,
+versión/SDK/ABI y firma comprobada. APK debug, no release de tienda.
+
+Android13+ ARM64. Si la firma debug difiere de la app instalada, Android puede rechazar
+actualización. **No desinstales sin conservar tus datos**: recuerdos, claves y modelos
+privados se borran al desinstalar. El cifrado Keystore no migra entre certificados.
+
+## Verificación
+
+100 pruebas JVM PASS; todos Kotlin/Compose/API35 compilan estáticamente; C++17/JNI
+con `-Wall -Wextra -Werror` contra revisión fijada PASS. Gemini real desde cliente JVM
+PASS. CI Android del nuevo commit debe aprobar para publicar APK0.7.
+
+Pendiente en teléfono: arranque, JNI y progreso real, latencia/RAM pico/temperatura,
+Keystore, voces instaladas, animación/rotación, pruebas móviles Gemini, descargas,
+accesibilidad, apps y servicios. No se enviaron mensajes ni se generaron imágenes/videos
+desde servicios de Sakura durante estas pruebas.
+
+Referencias de investigación:
+- https://ai.google.dev/gemini-api/docs/thinking
+- https://aistudio.google.com/docs/models
+- https://ai.google.dev/api/generate-content
+
+La disponibilidad se verificó con la API y la cuenta aportada, no se asumió que un
+modelo de una versión antigua siguiera disponible para todos los usuarios.

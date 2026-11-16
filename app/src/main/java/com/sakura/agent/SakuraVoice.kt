@@ -7,6 +7,10 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.util.Locale
 
 /** Created and called on the main thread; no background microphone or auto-send. */
@@ -20,6 +24,10 @@ class SakuraVoice(
     private var listening = false
     private var disposed = false
     private var tts: TextToSpeech? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    var speaking by mutableStateOf(false); private set
+    private var utteranceCounter = 0L
+    private var activeUtterance: String? = null
 
     init {
         tts = TextToSpeech(context) { code ->
@@ -28,7 +36,13 @@ class SakuraVoice(
                 tts?.setSpeechRate(1.02f)
                 tts?.setPitch(1.08f)
             }
-        }
+        }.also { engine -> engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(id: String?) { main.post { if(!disposed && id==activeUtterance) speaking=true } }
+            override fun onDone(id: String?) { main.post { if(id==activeUtterance) { speaking=false; activeUtterance=null } } }
+            @Deprecated("Android legacy callback")
+            override fun onError(id: String?) { main.post { if(id==activeUtterance) { speaking=false; activeUtterance=null } } }
+            override fun onStop(id: String?, interrupted: Boolean) { main.post { if(id==activeUtterance) { speaking=false; activeUtterance=null } } }
+        }) }
     }
 
     fun dictate(internetAllowed: Boolean) {
@@ -73,22 +87,26 @@ class SakuraVoice(
         catch (_: Exception) { listening = false; onStatus("No se pudo iniciar el dictado. Revisa el permiso de micrófono.") }
     }
 
-    fun speak(text: String, internetAllowed: Boolean) {
+    fun speak(text: String, internetAllowed: Boolean, kawaii: Boolean = false, localOnly: Boolean = false) {
         val engine = tts
         if (!ready || engine == null) { onStatus("El motor de voz todavía no está listo."); return }
         val voices = engine.voices.orEmpty().filter { voice ->
             voice.locale.language == "es" &&
-                (internetAllowed || !voice.isNetworkConnectionRequired) &&
+                (internetAllowed && !localOnly || !voice.isNetworkConnectionRequired) &&
                 !voice.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
         }.sortedWith(compareBy({ it.isNetworkConnectionRequired }, { it.name }))
         val voice = voices.firstOrNull()
         if (voice == null) { onStatus("No hay una voz española instalada compatible con tu ajuste de privacidad."); return }
         if (engine.setVoice(voice) == TextToSpeech.ERROR) { onStatus("No se pudo activar la voz española."); return }
-        val result = engine.speak(text.take(3500), TextToSpeech.QUEUE_FLUSH, null, "sakura_reply")
+        engine.setPitch(if(kawaii) 1.2f else 1.0f)
+        engine.setSpeechRate(if(kawaii) 1.05f else 1.0f)
+        val id="sakura_reply_${++utteranceCounter}"; activeUtterance=id
+        val result = engine.speak(text.take(3500), TextToSpeech.QUEUE_FLUSH, null, id)
+        if(result == TextToSpeech.ERROR) { speaking=false; activeUtterance=null }
         onStatus(if (result == TextToSpeech.ERROR) "Falló la lectura en voz alta." else if (voice.isNetworkConnectionRequired)
             "Lectura con voz de Android que requiere Internet (hasta 3500 caracteres)." else "Lectura con voz local de Android (hasta 3500 caracteres).")
     }
 
-    fun stop() { recognizer?.cancel(); listening = false; tts?.stop() }
+    fun stop() { activeUtterance=null; recognizer?.cancel(); listening = false; tts?.stop(); speaking=false }
     fun close() { disposed = true; stop(); recognizer?.destroy(); recognizer = null; tts?.shutdown(); tts = null }
 }

@@ -8,17 +8,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -59,72 +53,35 @@ internal fun SkillsPage(vm: SakuraViewModel) {
 
 @Composable
 internal fun TextApiPage(vm: SakuraViewModel) {
-    val current = vm.skills.config
+    val current=vm.skills.config
     var provider by remember(current) { mutableStateOf(current.provider) }
     var model by remember(current) { mutableStateOf(current.model) }
     var endpoint by remember(current) { mutableStateOf(current.endpoint) }
-    var key by remember(provider) { mutableStateOf("") }
-    var visible by remember { mutableStateOf(false) }
-    val config = TextConfig(provider, model.trim(), endpoint.trim())
-    val keyConfigured = config.key in vm.features.configured
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Info("Local por defecto y sin claves. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. Chat no añade notas privadas, archivos ni pantalla. La clave se guarda cifrada con Android Keystore y se envía solo al proveedor elegido. No se prueba una conexión al guardar; usa «Probar conexión» para una petición mínima.")
-        Text("Proveedor", color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            TextProtocol.providers.forEach { option ->
-                FilterChip(provider == option, {
-                    provider = option
-                    model = TextProtocol.firstModel(option)
-                    endpoint = "https://api.openai.com/v1/chat/completions"
-                }, label = { Text(option) }, modifier = Modifier.padding(end = 5.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Info("Local por defecto. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. Chat no añade notas privadas, archivos ni pantalla. Agente puede incluir fragmentos de resultados anteriores (GitHub/apps/web): revisa su JSON completo antes de compartir. Configura claves cifradas en Privacidad. No se prueba una conexión al guardar. Disponibilidad/precios y retención dependen del proveedor; usa un modelo de texto con Chat Completions, no Responses ni audio.")
+        Row(Modifier.horizontalScroll(rememberScrollState())) { TextProtocol.providers.forEach { option ->
+            FilterChip(provider==option,{provider=option;model=if(option=="Gemini") "gemini-3.1-flash-lite" else ""},label={Text(option)},modifier=Modifier.padding(end=5.dp))
+        } }
+        if(provider!="Local") {
+            Field("ID exacto del modelo (de tu proveedor)",model,{model=it.take(150)},!vm.busy)
+            if(provider=="Compatible") {
+                Field("Endpoint HTTPS completo /v1/chat/completions",endpoint,{endpoint=it.take(4096)},!vm.busy)
+                Info("Compatible significa protocolo Chat Completions con max_tokens y respuesta choices[].message.content. No cualquier API. Solo dominio público HTTPS, sin query/credenciales/redirects. Tu clave compatible se envía al host elegido: verifica que confías en él.")
             }
+            Text("Clave requerida: ${TextConfig(provider,model,endpoint).key} · Privacidad")
         }
-        if (provider != "Local") {
-            Text("Modelos sugeridos", color = MaterialTheme.colorScheme.secondary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                TextProtocol.suggestions[provider].orEmpty().forEach { suggestion ->
-                    AssistChip(onClick = { model = suggestion }, label = { Text(suggestion) }, modifier = Modifier.padding(end = 5.dp))
-                }
-            }
-            Field("ID exacto del modelo (editable)", model, { model = it.take(150) }, !vm.busy)
-            if (provider == "Compatible") {
-                Field("Endpoint HTTPS completo /v1/chat/completions", endpoint, { endpoint = it.take(4096) }, !vm.busy)
-                Info("Compatible significa protocolo Chat Completions con max_tokens y respuesta choices[].message.content. Solo dominio público HTTPS, sin query/credenciales/redirects. Tu clave se envía al host elegido: verifica que confías en él.")
-            }
-            Text("Clave API de $provider", color = MaterialTheme.colorScheme.secondary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            OutlinedTextField(
-                value = key,
-                onValueChange = { key = it.take(512) },
-                enabled = !vm.busy,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Clave API (se guarda cifrada)") },
-                singleLine = true,
-                visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { visible = !visible }) {
-                        Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (visible) "Ocultar clave" else "Mostrar clave")
-                    }
-                },
-                supportingText = { Text(if (keyConfigured) "Hay una clave guardada para $provider. No se muestra." else "Sin clave guardada para $provider.", fontSize = 11.sp) }
-            )
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                Button(enabled = !vm.busy && key.isNotBlank(), onClick = {
-                    vm.features.saveCredential(config.key, key.trim())
-                    key = ""
-                }) { Text("Guardar clave") }
-                TextButton(enabled = !vm.busy && keyConfigured, onClick = { vm.features.saveCredential(config.key, ""); key = "" }) { Text("Borrar clave") }
-                OutlinedButton(enabled = !vm.busy && keyConfigured, onClick = vm.skills::prepareProbe) { Text("Probar conexión") }
-            }
-            Text("Guardar no conecta ni valida la clave. «Probar conexión» envía una petición mínima y puede consumir cuota.", fontSize = 11.sp)
-        } else {
-            Info("Modo local: no necesitas clave API. Descarga Qwen2.5 1.5B desde Modelos; se verifica, se copia al almacenamiento privado y se carga en CPU.")
-            Button(enabled = !vm.busy, onClick = { vm.page = "Modelos" }) { Text("Abrir centro de modelos") }
+        EngineSelector(vm)
+        Info("Bajo: respuesta local de hasta192 tokens/45 s, una pareja de chat y cuatro notas; prioriza brevedad. Alto: hasta384 tokens/90 s, tres parejas y doce notas. No cambia pesos ni expone pensamiento interno. Gemini 3.1 Flash-Lite usa MINIMAL/HIGH con512/2048 tokens totales; en otros modelos no se inventa un control de pensamiento. Puede aumentar consumo y latencia.")
+        Button(enabled=!vm.busy,onClick={vm.skills.save(TextConfig(provider,model.trim(),endpoint.trim(),vm.skills.config.effort))}) { Text("Guardar selección sin conectar") }
+        Text("Selección guardada: ${current.provider} · ${current.model}")
+        if(current.provider=="Gemini") {
+            Button(enabled=!vm.busy && vm.internetAllowed,onClick=vm.skills::testGemini) { Text("Revisar prueba real de Gemini…") }
+            Text(vm.skills.connectionStatus)
+            Text("La APK no incluye tu clave. Guarda gemini_key en Privacidad y confirma esta prueba desde tu móvil.",style=MaterialTheme.typography.bodySmall)
         }
-        Button(enabled = !vm.busy, onClick = { vm.skills.save(config) }) { Text("Guardar selección sin conectar") }
-        Text("Selección guardada: ${current.provider} · ${current.model.ifBlank { "sin modelo" }}")
-        OutlinedButton(onClick = { vm.page = "Modelos" }) { Text("Modelos locales") }
-        OutlinedButton(onClick = { vm.page = "Chat" }) { Text("Volver al chat") }
-        if (vm.busy) TextButton(onClick = vm.skills::cancel) { Text("Cancelar petición de texto / búsqueda") }
+        OutlinedButton(onClick={vm.page="Privacidad"}) { Text("Configurar claves cifradas") }
+        OutlinedButton(onClick={vm.page="Chat"}) { Text("Volver al chat") }
+        if(vm.busy) TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición de texto / búsqueda") }
     }
 }
 
