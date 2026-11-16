@@ -140,7 +140,7 @@ internal fun GardenPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Un
                         Text(if (vm.autoSpeak) "La voz automática está activada. También puedes pedirle un saludo." else "Puedes pedirle un saludo o activar la lectura automática en el chat.", fontSize = 12.sp)
                         Row {
                             TextButton(onClick = vm::speakGreeting) { Text("Escuchar saludo") }
-                            TextButton(onClick = { vm.setAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
+                            TextButton(onClick = { vm.updateAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
                         }
                     }
                 }

@@ -178,19 +178,19 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         if (entry == null) downloadStarter() else loadModel(entry)
     }
 
-    fun setAutoDownloadStarter(enabled: Boolean) = work("Guardando preferencia del modelo…") {
+    fun updateAutoDownloadStarter(enabled: Boolean) = work("Guardando preferencia del modelo…") {
         withContext(Dispatchers.IO) { store.write(StarterModel.AUTO_KEY, enabled.toString()) }
         autoDownloadStarter = enabled
         status = if (enabled) "El modelo inicial se descargará automáticamente tras instalar." else "Descarga automática desactivada; puedes descargarlo desde Modelos."
     }
 
-    fun setAutoLoadStarter(enabled: Boolean) = work("Guardando preferencia de carga…") {
+    fun updateAutoLoadStarter(enabled: Boolean) = work("Guardando preferencia de carga…") {
         withContext(Dispatchers.IO) { store.write(StarterModel.AUTO_LOAD_KEY, enabled.toString()) }
         autoLoadStarter = enabled
         status = if (enabled) "El modelo inicial se cargará al iniciar Sakura." else "Carga automática desactivada; usa Cargar en Modelos."
     }
 
-    fun setAutoSpeak(enabled: Boolean) = work("Guardando preferencia de voz…") {
+    fun updateAutoSpeak(enabled: Boolean) = work("Guardando preferencia de voz…") {
         withContext(Dispatchers.IO) { store.write("auto_speak", enabled.toString()) }
         autoSpeak = enabled
         status = if (enabled) "Sakura leerá sus respuestas en voz alta." else "Lectura automática desactivada."

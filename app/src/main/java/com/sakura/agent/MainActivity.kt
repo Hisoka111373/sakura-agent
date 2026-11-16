@@ -192,7 +192,7 @@ private fun ChatPage(vm: SakuraViewModel, speak: (String) -> Unit, dictate: () -
         if (!vm.starterReady || vm.loadedModel == null) StarterModelCard(vm, confirm, compact = true)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
             Text("Escribe «busca …» y Sakura buscará de verdad. ", color = Aqua, fontSize = 11.sp)
-            TextButton(onClick = { vm.setAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
+            TextButton(onClick = { vm.updateAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
             TextButton(onClick = { vm.page = "Modelos" }) { Text("Modelos") }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -404,15 +404,15 @@ private fun PrivacyPage(vm: SakuraViewModel, onInternet: (Boolean) -> Unit) {
         Text("Voz, mascota y modelo", color = Pink, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Leer respuestas automáticamente", Modifier.weight(1f))
-            Switch(checked = vm.autoSpeak, enabled = !vm.busy, onCheckedChange = vm::setAutoSpeak)
+            Switch(checked = vm.autoSpeak, enabled = !vm.busy, onCheckedChange = vm::updateAutoSpeak)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Descargar modelo inicial automáticamente", Modifier.weight(1f))
-            Switch(checked = vm.autoDownloadStarter, enabled = !vm.busy, onCheckedChange = vm::setAutoDownloadStarter)
+            Switch(checked = vm.autoDownloadStarter, enabled = !vm.busy, onCheckedChange = vm::updateAutoDownloadStarter)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Cargar modelo inicial al iniciar", Modifier.weight(1f))
-            Switch(checked = vm.autoLoadStarter, enabled = !vm.busy, onCheckedChange = vm::setAutoLoadStarter)
+            Switch(checked = vm.autoLoadStarter, enabled = !vm.busy, onCheckedChange = vm::updateAutoLoadStarter)
         }
         Row {
             TextButton(onClick = vm::speakGreeting) { Text("Probar voz de Sakura") }
