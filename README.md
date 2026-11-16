@@ -135,11 +135,11 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 
 ## Integración en GitHub
 
-0.2, 0.3, 0.4 y 0.5 ya integradas por PR #3/#4/#5/#7. La ampliación actual se sube a
-`sakura-v0.6-integration`, base `9a9423197d8626e67e5744e0221624f32441e8a8`,
-mediante pull request, conservando el proyecto Android original. Consulta su PR/Actions
-para conocer el estado actual de integración y compilación; las verificaciones
-estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
+0.2, 0.3, 0.4 y 0.5 ya integradas por PR #3/#4/#5/#7. 0.6 se integró desde
+`sakura-v0.6-integration` y 0.7 desde `feature/sakura-0.7-auto-model` en `main`,
+conservando el proyecto Android original. La APK 0.7 vive en `apk/`; no hay
+release 0.7. Consulta el CI de `main` para el estado actual de compilación y
+tests; las verificaciones estáticas no sustituyen pruebas en un teléfono.
 
 ## Funciones implementadas en el código
 
@@ -153,7 +153,7 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 | GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. |
 | Android | Listar/abrir apps visibles con confirmación. Pantalla: búsqueda accesible manual solo en apps permitidas, no control general. |
 | APK | Revisar la APK seleccionada: paquete, versión, SDK, permisos, hashes de certificado y archivo, bibliotecas. Sin instalar, ejecutar ni extraer ZIP. No es antivirus ni verificación completa de firma. |
-| Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local. |
+| Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local; lectura automática opcional y botón de saludo. |
 | Privacidad | Red desautorizada al iniciar. Chat en RAM; memoria/credenciales cifradas. fal.ai recibe prompt visual confirmado; APIs de texto reciben contexto confirmado sin notas guardadas. No hay analítica añadida ni envío de pantalla. FLAG_SECURE. |
 
 ## Requisitos y compatibilidad
