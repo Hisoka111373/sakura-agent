@@ -5,6 +5,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Single process engine; Java serializes requests, mutex protects teardown.
@@ -16,8 +17,17 @@ llama_context *ctx = nullptr;
 llama_sampler *sampler = nullptr;
 bool initialized = false;
 constexpr int contextSize = 2048;
-constexpr int batchSize = 256;
-constexpr int outputLimit = 384;
+constexpr int batchSize = 512;
+constexpr int ubatchSize = 256;
+
+llama_sampler *makeSampler(float temperature) {
+    auto *chain = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    llama_sampler_chain_add(chain, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(chain, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(chain, llama_sampler_init_temp(std::max(0.1f, std::min(1.2f, temperature))));
+    llama_sampler_chain_add(chain, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+    return chain;
+}
 
 bool abortDecode(void *) { return cancelled.load(); }
 bool loadProgress(float, void *) { return !cancelled.load(); }
@@ -125,35 +135,37 @@ Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring path)
         model = llama_model_load_from_file(filename.c_str(), params);
         if (!model) throw std::runtime_error("GGUF load failed or was cancelled. Check model compatibility and available RAM.");
         auto cp = llama_context_default_params();
-        cp.n_ctx = contextSize; cp.n_batch = batchSize; cp.n_ubatch = batchSize;
-        cp.n_threads = 4; cp.n_threads_batch = 4;
+        cp.n_ctx = contextSize; cp.n_batch = batchSize; cp.n_ubatch = ubatchSize;
+        const unsigned hw = std::thread::hardware_concurrency();
+        const int threads = hw == 0 ? 4 : static_cast<int>(std::min(8u, std::max(2u, hw)));
+        cp.n_threads = threads; cp.n_threads_batch = threads;
         cp.abort_callback = abortDecode;
         ctx = llama_init_from_model(model, cp);
         if (!ctx) throw std::runtime_error("Context allocation failed. Try a smaller model.");
-        sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
-        llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
-        llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+        sampler = makeSampler(0.7f);
     } catch (const std::exception &e) { unload(); fail(env, e.what()); }
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArray system,
-                                                jobjectArray roles, jobjectArray texts) {
+                                                jobjectArray roles, jobjectArray texts, jint maxTokens,
+                                                jfloat temperature) {
     std::lock_guard<std::mutex> guard(mutex);
     try {
         if (!model || !ctx || !sampler) throw std::runtime_error("Load a GGUF model first.");
         auto tokens = tokenize(format(env, system, roles, texts));
-        if (tokens.size() + outputLimit >= contextSize)
+        const int limit = std::max(32, std::min(static_cast<int>(maxTokens), 512));
+        if (tokens.size() + static_cast<size_t>(limit) + 8 >= contextSize)
             throw std::runtime_error("Context limit exceeded (2048 tokens). Start a new chat or shorten the message and memories.");
         llama_memory_clear(llama_get_memory(ctx), true);
+        llama_sampler_free(sampler);
+        sampler = makeSampler(temperature);
         llama_sampler_reset(sampler);
         if (!decode(tokens)) throw std::runtime_error("Prompt processing failed or was cancelled.");
         auto batch = llama_batch_init(1, 0, 1);
         std::string output;
         bool decodeFailed = false;
-        for (int step = 0; step < outputLimit && !cancelled.load(); ++step) {
+        for (int step = 0; step < limit && !cancelled.load(); ++step) {
             const auto token = llama_sampler_sample(sampler, ctx, -1);
             const auto vocab = llama_model_get_vocab(model);
             if (llama_vocab_is_eog(vocab, token)) break;

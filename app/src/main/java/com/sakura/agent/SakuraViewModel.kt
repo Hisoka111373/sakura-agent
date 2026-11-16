@@ -81,7 +81,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var autoLoadStarter by mutableStateOf(true)
         private set
-    var autoSpeak by mutableStateOf(false)
+    var autoSpeak by mutableStateOf(true)
         private set
     var speech by mutableStateOf<SpeechRequest?>(null)
         private set
@@ -94,7 +94,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             }
             memories = saved.first; level = saved.second; humor = saved.third
             hasToken = withContext(Dispatchers.IO) { !store.read("github_token").isNullOrBlank() }
-            autoSpeak = withContext(Dispatchers.IO) { store.read("auto_speak") == "true" }
+            autoSpeak = withContext(Dispatchers.IO) { store.read("auto_speak") != "false" }
             autoDownloadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_KEY) != "false" }
             autoLoadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_LOAD_KEY) != "false" }
             models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
@@ -115,6 +115,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 else -> status = "Sin modelo cargado. Descarga Qwen2.5 1.5B desde Modelos."
             }
+            if (autoSpeak && loadedModel != null) requestSpeech(greetingLine())
         }
     }
 
@@ -126,7 +127,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         val start = android.os.SystemClock.elapsedRealtime()
         withContext(nativeWorker) { native().nativeLoad(File(LocalFiles.modelDir(app), model.id).path) }
         loadedModel = model; messages = emptyList()
-        status = "${model.name} cargado en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. CPU · contexto 2048 · máximo 384 tokens de salida."
+        status = "${model.name} cargado en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. CPU · contexto 2048 · modo rápido 160 / alto 320 tokens. Hilos automáticos."
     }
 
     private suspend fun downloadStarterInternal() {
@@ -201,14 +202,26 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         speech = SpeechRequest(System.nanoTime(), text.take(3500))
     }
 
-    fun speakGreeting() {
-        requestSpeech(listOf(
-            "Hola, sempai. Soy Sakura. ¿Qué vamos a crear hoy?",
-            "Ya estoy aquí. Cuéntame tu idea y la hacemos florecer.",
-            "¡Sugoi! Estoy lista. ¿Empezamos con código, un plan o una búsqueda?",
-            "Qué gusto verte. Respira, escribe tu idea y vamos a tu ritmo."
-        ).random())
-    }
+    fun greetingLine(): String = listOf(
+        "¡Kyaa~! Hola, sempai. Soy Sakura. ¿Qué vamos a crear hoy?",
+        "Ya estoy aquí, sempai. Cuéntame tu idea y la hacemos florecer juntos.",
+        "¡Sugoi! Estoy lista. ¿Empezamos con código, un plan o una búsqueda?",
+        "Qué gusto verte, sempai. Respira, escribe tu idea y vamos a tu ritmo.",
+        "¡Pompom~! Sakura despierta. ¿Progamamos algo lindo hoy?",
+        "Sempai, ya cargué mis pétalos. ¿Qué aventura empezamos?",
+        "¡Hola, hola! Estoy aquí para ayudarte, con cariño y cero prisa.",
+        "¡Yatta! Todo listo. Pídeme abrir una app, escribir en pantalla o buscar algo.",
+        "Sempai, ¿un café virtual y un proyecto nuevo? ¡Vamos!",
+        "Mi jardín está floreciendo. Cuéntame qué necesitas y lo intentamos juntos."
+    ).random()
+    fun speakGreeting() { requestSpeech(greetingLine()) }
+    fun speakQuip() = requestSpeech(listOf(
+        "¡Sugoi, sempai! Me encanta cuando trabajamos juntos.",
+        "Estoy aquí, tranquilo. Paso a paso lo logramos.",
+        "¡Pompom! Si algo falla, lo revisamos con calma.",
+        "Qué bonito día para aprender algo nuevo, ¿verdad?",
+        "Sempai, recuerda respirar. Yo te acompaño."
+    ).random())
 
     internal fun appendUser(text: String) {
         messages = messages + ChatMessage(text, false)
@@ -328,24 +341,38 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun send() {
         if (busy || draft.isBlank()) return
         if (skills.isSearchRequest(draft)) { skills.prepareChatSearch(); return }
-        if (skills.config.provider != "Local") { skills.prepareChat(); return }
-        if (loadedModel == null) { status = "Descarga o carga un GGUF en Modelos. No hay respuestas simuladas."; return }
+        if (skills.prepareChatAction()) return
+        if (skills.chatMode == "Online") {
+            if (skills.config.provider == "Local") {
+                status = "Modo online sin proveedor. Elige Gemini u otro proveedor en APIs."
+                page = "APIs"
+                return
+            }
+            skills.prepareChat()
+            return
+        }
+        if (loadedModel == null) { status = "Descarga o carga un GGUF en Modelos, o cambia a modo online en el chat. No hay respuestas simuladas."; return }
         val text = draft.trim()
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
+        val deep = skills.thinking == "Alto"
         val previous = messages
-        val history = previous.takeLast(6) + ChatMessage(text, false)
+        val history = previous.takeLast(if (deep) 6 else 4) + ChatMessage(text, false)
         val skill = skills.markSelected(text)
-        val system = AgentPolicy.systemPrompt(level, humor, memories) + Skills.guidance(skill)
+        val mode = if (deep) "\nModo pensamiento alto: analiza el problema, considera alternativas y explica riesgos; sé claro y completo, sin relleno." else
+            "\nModo rápido: responde directo y breve, máximo 5 frases salvo que se pida código o detalle."
+        val system = AgentPolicy.systemPrompt(level, humor, memories) + mode + Skills.guidance(skill)
         draft = ""; messages = previous + ChatMessage(text, false)
-        work("Sakura está pensando localmente…") {
+        val limit = if (deep) 320 else 160
+        val temperature = if (deep) 0.8f else 0.55f
+        work(if (deep) "Sakura piensa con detalle (modo alto)…" else "Sakura responde en modo rápido…") {
             engine?.nativeResetCancellation()
             generating = true
             try {
                 val start = android.os.SystemClock.elapsedRealtime()
-                val answer = withContext(nativeWorker) { native().generate(system, history) }
+                val answer = withContext(nativeWorker) { native().generate(system, history, limit, temperature) }
                 messages = messages + ChatMessage(answer, true)
                 if (autoSpeak) requestSpeech(answer)
-                status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. Últimas tres parejas y doce notas en contexto; no es garantía de rendimiento."
+                status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s · $limit tokens · ${if (deep) "pensamiento alto" else "modo rápido"}. No es garantía de rapidez."
             } catch (error: Exception) {
                 messages = previous; draft = text
                 throw error

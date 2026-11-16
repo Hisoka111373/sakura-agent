@@ -6,6 +6,7 @@ import java.text.Normalizer
 data class SakuraSkill(val name: String, val page: String, val instruction: String = "",
     val category: String = if(page == "Chat") "General" else "Herramientas", val cues: List<String> = emptyList())
 data class SearchTask(val kind: String, val query: String)
+data class ChatCommand(val kind: String, val target: String = "", val text: String = "")
 
 /** Curated capabilities inside the Android app; not executable model tools. */
 object Skills {
@@ -73,6 +74,33 @@ object Skills {
             append("No abrí ni descargué estos enlaces. Pídeme resumirlos o ábrelos con revisión.")
         }
     }
+    /** Local intent router for app/screen actions. It never grants permissions by itself. */
+    fun chatAction(input: String): ChatCommand? {
+        val raw = input.trim()
+        if (raw.length !in 3..500) return null
+        val ignore = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        Regex("^(abre|abrir|lanza|lanzar|open)\\s+(https://\\S+)$", ignore).find(raw)?.let {
+            return ChatCommand("open_url", target = it.groupValues[2])
+        }
+        Regex("^(abre|abrir|lanza|lanzar)\\s+(youtube|chrome|firefox|play\\s*store)\\s+y\\s+(busca|buscar|escribe|escribir)\\s+(.{1,500})$", ignore)
+            .find(raw)?.let {
+                return ChatCommand("screen", target = it.groupValues[2].replace(" ", ""), text = it.groupValues[4].trim())
+            }
+        Regex("^(escribe|escribir)\\s+(.{1,500}?)\\s+en\\s+(youtube|chrome|firefox|play\\s*store)$", ignore)
+            .find(raw)?.let {
+                return ChatCommand("screen", target = it.groupValues[3].replace(" ", ""), text = it.groupValues[2].trim())
+            }
+        Regex("^(abre|abrir|lanza|lanzar|inicia|iniciar|open)\\s+(?:la\\s+app\\s+|la\\s+aplicaci[oó]n\\s+|app\\s+|apk\\s+)?(.{1,100})$", ignore)
+            .find(raw)?.let {
+                val target = it.groupValues[2].trim()
+                if (target.isNotEmpty() && !target.startsWith("http", true)) return ChatCommand("open_app", target = target)
+            }
+        return null
+    }
+    fun screenApp(label: String): String? = ScreenPolicy.packages.entries.firstOrNull {
+        normalized(it.key).replace(" ", "") == normalized(label).replace(" ", "") ||
+            normalized(label).replace(" ", "").contains(normalized(it.key).replace(" ", ""))
+    }?.value
     fun searchUrl(kind: String, query: String): String {
         require(NetworkPolicy.text(query,500))
         val q = URLEncoder.encode(query,"UTF-8")

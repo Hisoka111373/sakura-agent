@@ -68,7 +68,7 @@ internal fun TextApiPage(vm: SakuraViewModel) {
     val config = TextConfig(provider, model.trim(), endpoint.trim())
     val keyConfigured = config.key in vm.features.configured
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Info("Local por defecto y sin claves. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. Chat no añade notas privadas, archivos ni pantalla. La clave se guarda cifrada con Android Keystore y se envía solo al proveedor elegido. No se prueba una conexión al guardar; usa «Probar conexión» para una petición mínima.")
+        Info("Local por defecto y sin claves. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. Chat no añade notas privadas, archivos ni pantalla. La clave se guarda cifrada con Android Keystore y se envía solo al proveedor elegido. «Probar conexión» usa el formulario actual, aunque aún no hayas guardado la selección o la clave.")
         Text("Proveedor", color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         Row(Modifier.horizontalScroll(rememberScrollState())) {
             TextProtocol.providers.forEach { option ->
@@ -91,6 +91,7 @@ internal fun TextApiPage(vm: SakuraViewModel) {
                 Field("Endpoint HTTPS completo /v1/chat/completions", endpoint, { endpoint = it.take(4096) }, !vm.busy)
                 Info("Compatible significa protocolo Chat Completions con max_tokens y respuesta choices[].message.content. Solo dominio público HTTPS, sin query/credenciales/redirects. Tu clave se envía al host elegido: verifica que confías en él.")
             }
+            if (provider == "Gemini") Info("Gemini AI Studio: usa una clave que empiece por AIza y un modelo 2.5. La prueba envía solo «Responde únicamente: OK» con 32 tokens. Si falla, el error muestra el código HTTP y el motivo del proveedor sin revelar tu clave.")
             Text("Clave API de $provider", color = MaterialTheme.colorScheme.secondary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             OutlinedTextField(
                 value = key,
@@ -113,7 +114,8 @@ internal fun TextApiPage(vm: SakuraViewModel) {
                     key = ""
                 }) { Text("Guardar clave") }
                 TextButton(enabled = !vm.busy && keyConfigured, onClick = { vm.features.saveCredential(config.key, ""); key = "" }) { Text("Borrar clave") }
-                OutlinedButton(enabled = !vm.busy && keyConfigured, onClick = vm.skills::prepareProbe) { Text("Probar conexión") }
+                OutlinedButton(enabled = !vm.busy && (keyConfigured || key.isNotBlank()),
+                    onClick = { vm.skills.prepareProbe(config, key.trim()) }) { Text("Probar conexión") }
             }
             Text("Guardar no conecta ni valida la clave. «Probar conexión» envía una petición mínima y puede consumir cuota.", fontSize = 11.sp)
         } else {
@@ -121,7 +123,8 @@ internal fun TextApiPage(vm: SakuraViewModel) {
             Button(enabled = !vm.busy, onClick = { vm.page = "Modelos" }) { Text("Abrir centro de modelos") }
         }
         Button(enabled = !vm.busy, onClick = { vm.skills.save(config) }) { Text("Guardar selección sin conectar") }
-        Text("Selección guardada: ${current.provider} · ${current.model.ifBlank { "sin modelo" }}")
+        if (provider != "Local") OutlinedButton(enabled = !vm.busy, onClick = { vm.skills.save(config, openChat = true) }) { Text("Guardar y usar en el chat · Online") }
+        Text("Selección guardada: ${current.provider} · ${current.model.ifBlank { "sin modelo" }} · modo ${vm.skills.chatMode} · pensamiento ${vm.skills.thinking}")
         OutlinedButton(onClick = { vm.page = "Modelos" }) { Text("Modelos locales") }
         OutlinedButton(onClick = { vm.page = "Chat" }) { Text("Volver al chat") }
         if (vm.busy) TextButton(onClick = vm.skills::cancel) { Text("Cancelar petición de texto / búsqueda") }

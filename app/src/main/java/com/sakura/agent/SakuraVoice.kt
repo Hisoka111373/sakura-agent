@@ -25,8 +25,8 @@ class SakuraVoice(
         tts = TextToSpeech(context) { code ->
             if (!disposed) {
                 ready = code == TextToSpeech.SUCCESS
-                tts?.setSpeechRate(1.02f)
-                tts?.setPitch(1.08f)
+                tts?.setSpeechRate(1.03f)
+                tts?.setPitch(1.14f)
             }
         }
     }

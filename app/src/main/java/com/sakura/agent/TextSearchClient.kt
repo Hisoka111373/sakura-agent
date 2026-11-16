@@ -34,8 +34,18 @@ class TextSearchClient {
         if(cancelled.get()) call.cancel()
         try {
             return call.execute().use { response ->
-                require(response.code in 200..299) { "HTTP ${response.code}. Resultado no confirmado; sin reintento automático." }
                 val source=response.body?.source() ?: error("Sin respuesta.")
+                if (response.code !in 200..299) {
+                    runCatching { source.request(16_384) }
+                    val body = runCatching { source.readUtf8() }.getOrDefault("")
+                    val detail = runCatching {
+                        JSONObject(body).optJSONObject("error")?.optString("message").orEmpty()
+                    }.getOrDefault("").replace(Regex("\\s+"), " ").take(220)
+                    throw IllegalArgumentException(
+                        "HTTP ${response.code} de ${configHost(response.request.url.host)}" +
+                            (if (detail.isBlank()) ". Revisa clave, modelo, región y cuota." else ": $detail")
+                    )
+                }
                 require(!source.request(1_048_577)) { "Respuesta supera 1 MiB." }
                 check(!cancelled.get()) { "Petición cancelada." }
                 JSONObject(source.readUtf8())
@@ -45,15 +55,18 @@ class TextSearchClient {
             throw java.io.IOException(if(e is IllegalArgumentException) e.message?.take(160) else "Fallo de red/JSON o cancelación; resultado no confirmado. Revisa consumo antes de repetir.")
         } finally { active=null }
     }
-    fun generate(config: TextConfig, key: String, history: List<ChatMessage>, system: String = TextProtocol.system): String {
+    fun generate(config: TextConfig, key: String, history: List<ChatMessage>, system: String = TextProtocol.system,
+        maxTokens: Int = 768, thinking: String = "Bajo"): String {
         require(key.isNotBlank() && NetworkPolicy.secret(key)) { "Configura la clave del proveedor en Privacidad." }
         val headers=when(config.provider) {
             "Gemini" -> mapOf("x-goog-api-key" to key)
             "Anthropic" -> mapOf("x-api-key" to key,"anthropic-version" to "2023-06-01")
             else -> mapOf("Authorization" to "Bearer $key")
         }
-        return TextProtocol.answer(config.provider,request(config.url(),headers,TextProtocol.payload(config,history,system)))
+        return TextProtocol.answer(config.provider,request(config.url(),headers,TextProtocol.payload(config,history,system,maxTokens,thinking)))
     }
+    private fun configHost(host: String?): String = host?.takeIf { it.isNotBlank() } ?: "el proveedor"
+
     fun search(key: String, query: String): List<SearchResult> {
         require(key.isNotBlank() && NetworkPolicy.secret(key)) { "Configura brave_key en Privacidad." }
         require(NetworkPolicy.text(query,500))

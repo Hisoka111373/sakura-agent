@@ -25,6 +25,30 @@ class SkillsTest {
     @Test fun oversizedCloudHistoryRejected() { denied { TextProtocol.payload(TextConfig("OpenAI","m"),listOf(ChatMessage("x".repeat(24001),false))) } }
     @Test fun parsersTextOnly() { assertEquals("Hola",TextProtocol.answer("OpenAI",JSONObject("""{"choices":[{"message":{"content":"Hola"}}]}"""))); assertEquals("Hola",TextProtocol.answer("Anthropic",JSONObject("""{"content":[{"type":"tool_use","id":"x"},{"type":"text","text":"Hola"}]}"""))) }
     @Test fun geminiThoughtNotDisplayed() { assertEquals("Hola",TextProtocol.answer("Gemini",JSONObject("""{"candidates":[{"content":{"parts":[{"thought":true,"text":"private"},{"text":"Hola"}]}}]}"""))) }
+    @Test fun gemini25ThinkingAndModelPrefix() {
+        assertEquals("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            TextConfig("Gemini","models/gemini-2.5-flash").url())
+        val low = TextProtocol.payload(TextConfig("Gemini","gemini-2.5-flash"), listOf(ChatMessage("Hola",false)), maxTokens = 160, thinking = "Bajo")
+        assertEquals(160, low.getJSONObject("generationConfig").getInt("maxOutputTokens"))
+        assertEquals(0, low.getJSONObject("generationConfig").getJSONObject("thinkingConfig").getInt("thinkingBudget"))
+        val high = TextProtocol.payload(TextConfig("Gemini","gemini-2.5-flash"), listOf(ChatMessage("Hola",false)), maxTokens = 320, thinking = "Alto")
+        assertEquals(1024, high.getJSONObject("generationConfig").getJSONObject("thinkingConfig").getInt("thinkingBudget"))
+        assertFalse(TextProtocol.payload(TextConfig("Gemini","gemini-2.5-pro"), listOf(ChatMessage("Hola",false))).getJSONObject("generationConfig").has("thinkingConfig"))
+    }
+    @Test fun chatActionsAreLocalAndBounded() {
+        assertEquals(ChatCommand("open_url","https://example.com"), Skills.chatAction("abre https://example.com"))
+        assertEquals("open_app", Skills.chatAction("abre YouTube")?.kind)
+        assertEquals("YouTube", Skills.chatAction("abre YouTube")?.target)
+        val screen = Skills.chatAction("escribe gatitos en Chrome")
+        assertEquals("screen", screen?.kind)
+        assertEquals("Chrome", screen?.target)
+        assertEquals("gatitos", screen?.text)
+        assertEquals("screen", Skills.chatAction("abre YouTube y busca lofi")?.kind)
+        assertNull(Skills.chatAction("explícame Kotlin"))
+        assertEquals("com.google.android.youtube", Skills.screenApp("YouTube"))
+        assertEquals("com.android.vending", Skills.screenApp("Play Store"))
+        assertNull(Skills.screenApp("WhatsApp"))
+    }
     @Test fun searchFiltersUnsafeUrls() { val rows=SearchProtocol.results(JSONObject("""{"web":{"results":[{"title":"A","url":"https://example.com/x","description":"d"},{"title":"B","url":"javascript:alert(1)"},{"title":"C","url":"http://example.com/x"}]}}""")); assertEquals(1,rows.size) }
     @Test fun audioDoesNotAcceptHtml() { assertNull(NetworkPolicy.mediaExtension("<html>x</html>".toByteArray(),"Audio")); assertEquals("mp3",NetworkPolicy.mediaExtension("ID3test".toByteArray(),"Audio")); assertEquals("flac",NetworkPolicy.mediaExtension("fLaC123".toByteArray(),"Audio")) }
 }

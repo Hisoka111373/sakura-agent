@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -33,6 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 private val SakuraPink = Color(0xFFFF79B9)
 private val SakuraAqua = Color(0xFF73E6E0)
@@ -79,7 +83,7 @@ private fun Petals(modifier: Modifier = Modifier) {
         label = "fall"
     )
     Canvas(modifier) {
-        val count = 14
+        val count = 20
         for (index in 0 until count) {
             val seed = index * 0.173f
             val speed = 0.22f + (index % 5) * 0.07f
@@ -101,26 +105,82 @@ private fun Petals(modifier: Modifier = Modifier) {
 internal fun SakuraMascot(modifier: Modifier = Modifier, size: Dp = 72.dp, speaking: Boolean = false) {
     val motion = rememberInfiniteTransition(label = "mascot")
     val breath by motion.animateFloat(
-        initialValue = 1f, targetValue = 1.055f,
-        animationSpec = infiniteRepeatable(tween(if (speaking) 700 else 2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        initialValue = 1f, targetValue = if (speaking) 1.085f else 1.055f,
+        animationSpec = infiniteRepeatable(tween(if (speaking) 520 else 2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "breath"
     )
     val glow by motion.animateFloat(
-        initialValue = .25f, targetValue = .7f,
-        animationSpec = infiniteRepeatable(tween(if (speaking) 900 else 3200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        initialValue = .22f, targetValue = .82f,
+        animationSpec = infiniteRepeatable(tween(if (speaking) 760 else 3200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "glow"
     )
+    val bob by motion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(if (speaking) 640 else 2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bob"
+    )
+    val sway by motion.animateFloat(
+        initialValue = -1f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(if (speaking) 780 else 3600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "sway"
+    )
+    val sparkle by motion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(if (speaking) 1150 else 2600, easing = LinearEasing), RepeatMode.Restart),
+        label = "sparkle"
+    )
+    val blink by motion.animateFloat(
+        initialValue = 1f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            keyframes {
+                durationMillis = if (speaking) 2600 else 5200
+                1f at 0
+                1f at (if (speaking) 2150 else 4500)
+                .18f at (if (speaking) 2250 else 4600)
+                1f at (if (speaking) 2350 else 4700)
+            }
+        ),
+        label = "blink"
+    )
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.matchParentSize()) {
+            val radius = this.size.minDimension * if (speaking) .49f else .46f
+            val dot = this.size.minDimension * .022f
+            repeat(6) { index ->
+                val angle = (sparkle * 360f + index * 60f) * PI.toFloat() / 180f
+                val center = Offset(
+                    x = this.size.width / 2f + cos(angle) * radius,
+                    y = this.size.height / 2f + sin(angle) * radius * .72f
+                )
+                val alpha = (.18f + .42f * ((index + sparkle * 3f) % 2f).coerceIn(0f, 1f))
+                drawCircle(if (index % 2 == 0) SakuraPink else SakuraAqua, dot, center, alpha = alpha)
+            }
+        }
         Box(
-            Modifier.matchParentSize().graphicsLayer { scaleX = breath; scaleY = breath }
-                .background(Brush.radialGradient(listOf(SakuraPink.copy(alpha = glow * .38f), Color.Transparent)), CircleShape)
+            Modifier.matchParentSize().graphicsLayer { scaleX = breath * .92f; scaleY = breath * .92f }
+                .background(Brush.radialGradient(listOf(SakuraPink.copy(alpha = glow * .42f), Color.Transparent)), CircleShape)
         )
         Image(
             painterResource(R.drawable.sakura_avatar),
             "Mascota Sakura",
-            Modifier.size(size * .84f).clip(CircleShape).graphicsLayer { scaleX = breath; scaleY = breath },
+            Modifier.size(size * .84f).clip(CircleShape).graphicsLayer {
+                scaleX = breath
+                scaleY = breath * (.9f + blink * .1f)
+                rotationZ = sway * if (speaking) 4.2f else 1.7f
+                translationY = (bob - .5f) * if (speaking) 8f else 3f
+            },
             contentScale = ContentScale.Crop
         )
+        if (speaking) {
+            Surface(
+                modifier = Modifier.align(Alignment.TopEnd).size(19.dp),
+                shape = CircleShape, color = SakuraPink
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("♪", color = Color(0xFF100D1C), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 
@@ -134,13 +194,19 @@ internal fun GardenPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Un
         item {
             Card {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SakuraMascot(size = 86.dp, speaking = vm.starterDownloading)
+                    SakuraMascot(size = 86.dp, speaking = vm.starterDownloading || vm.generating)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("Sakura te escucha", color = SakuraPink, fontWeight = FontWeight.Bold)
                         Text(if (vm.autoSpeak) "La voz automática está activada. También puedes pedirle un saludo." else "Puedes pedirle un saludo o activar la lectura automática en el chat.", fontSize = 12.sp)
+                        val phrase by remember { mutableStateOf(vm.greetingLine()) }
+                        Text("«$phrase»", fontSize = 12.sp, color = SakuraAqua)
                         Row {
-                            TextButton(onClick = vm::speakGreeting) { Text("Escuchar saludo") }
+                            TextButton(onClick = { vm.requestSpeech(phrase) }) { Text("Escuchar a Sakura") }
+                            TextButton(onClick = { vm.speakQuip() }) { Text("Otra frase") }
+                        }
+                        Row {
                             TextButton(onClick = { vm.updateAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
+                            TextButton(onClick = { vm.page = "Chat" }) { Text("Hablar en el chat") }
                         }
                     }
                 }
@@ -155,7 +221,7 @@ internal fun GardenPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Un
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GardenStat("${Skills.entries.size}", "skills disponibles", Modifier.weight(1f))
-                GardenStat(vm.skills.config.provider, "motor elegido", Modifier.weight(1f))
+                GardenStat(vm.skills.chatMode, "modo · ${vm.skills.config.provider}", Modifier.weight(1f))
             }
         }
         item { Text("Un pequeño taller para grandes ideas", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) }
