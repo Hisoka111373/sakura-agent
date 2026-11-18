@@ -15,6 +15,7 @@ captures/
 .cxx/
 *.aab
 *.apk
+!apk/*.apk
 output-metadata.json
 
 # IntelliJ
