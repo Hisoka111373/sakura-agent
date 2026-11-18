@@ -1,3 +1,26 @@
+# Sakura 8.0 — APK nueva
+
+Archivo: `SakuraAgent-8.0-arm64-debug.apk` (nombre solicitado: 8.0). **Versión interna Android: 0.8.0, versionCode 9**, paquete `com.sakura.agent`. Android 13+ ARM64, build debug, no release de tienda.
+
+- Fuente: `2b523f592ae1100f2bf64480cff735a36e7ef978`, PR #11.
+- CI: https://github.com/Hisoka111373/sakura-agent/actions/runs/44219846378 — éxito.
+- 116 pruebas JVM, compilación Android, CRC, manifiesto/ABI, firma APK v2 y escaneo de claves: aprobados.
+- Tamaño: 73517525 bytes.
+- SHA256: `2a183165b7d52d2e794a14a741b5cd7b8c1f1b3cabcc68b6b9c939533e76b638`.
+- Certificado debug SHA256: `567c1335588ad29d5052a9411e4a9a6f38a83a054bb7dec44497b6c589b8c8f6`.
+
+Saludar, saltitos y reacciones al pensar/hablar; frases locales sin tokens con voz local opcional solo en primer plano. Botón Continuar pide otra parte por solicitud explícita (la nube sigue requiriendo revisión y puede consumir cuota/dinero). Bajo reduce salida local a 160 tokens y acota contexto anterior; no elimina límites ni garantiza más velocidad en tu móvil. Conserva Jardín, arte y 93 skills. No probado físicamente: inicio, rendimiento, JNI/TTS/gestos/accesibilidad.
+
+No incluye claves ni pesos. Configura tu clave cifrada en APIs y confirma la conexión Gemini desde el móvil. Descarga de GGUF manual confirmada; ninguna herramienta se ejecuta automáticamente.
+
+**Firma diferente de 0.7.1:** Android puede rechazar la actualización. No desinstales sin preservar tus datos; recuerdos/claves/modelos privados pueden perderse y Keystore no se restaura simplemente copiando archivos.
+
+Las APK anteriores se conservan intactas.
+
+---
+
+## Documentación histórica (no describe la build nueva)
+
 # Sakura Agent 0.7.1 — APK verificada
 
 - Archivo: `SakuraAgent-0.7.1-arm64-debug.apk`
