@@ -101,7 +101,8 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
         if (uri != null && selected != null) vm.features.export(selected,uri)
     }
 
-    CompositionLocalProvider(LocalMascotMotion provides vm.mascotMotion, LocalMascotSpeaking provides voice.speaking) {
+    CompositionLocalProvider(LocalMascotMotion provides vm.mascotMotion, LocalMascotSpeaking provides voice.speaking,
+        LocalCompanionEvent provides vm.companionEvent, LocalCompanionSequence provides vm.companionSequence) {
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -125,7 +126,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 when (vm.page) {
                     "Jardín" -> GardenPage(vm, confirm)
                     "Agente" -> AgentPage(vm)
-                    "Chat" -> ChatPage(vm,voice.speaking,{voice.speak("¡Hola! Soy Sakura. Me alegra verte. Cuéntame tu idea, vamos paso a paso.",false,vm.kawaii,localOnly=true)}, { message -> voice.speak(message, vm.internetAllowed,vm.kawaii) }, {
+                    "Chat" -> ChatPage(vm,voice.speaking,vm::speakGreeting, { message -> voice.speak(message, vm.internetAllowed,vm.kawaii) }, {
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                             voice.dictate(vm.internetAllowed)
                         else audioPermission.launch(Manifest.permission.RECORD_AUDIO)
@@ -225,6 +226,8 @@ private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, 
             TextButton(enabled = !vm.busy, onClick = { vm.page = "Skills" }) { Text("Cambiar") }
         }
         if (vm.generating) TextButton(onClick = vm::cancelGeneration) { Text("Detener generación") }
+        if(CompanionPolicy.canContinue(vm.messages,vm.draft)) TextButton(enabled=!vm.busy,onClick=vm::continueAnswer) { Text("Continuar · pedir otra parte") }
+        Text("Respuestas por partes, no ilimitadas. Bajo reduce salida/contexto; Continuar hace una nueva petición y la nube pide confirmación.",fontSize=11.sp,color=Aqua)
         if (vm.busy && vm.skills.config.provider != "Local") TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición nube") }
         if (vm.draft.isNotBlank()) TextButton(enabled=!vm.busy,onClick={vm.skills.route(vm.draft)}) { Text("Preparar como búsqueda (sin enviarla al modelo)") }
         if(vm.draft.isNotBlank()) TextButton(enabled=!vm.busy,onClick={

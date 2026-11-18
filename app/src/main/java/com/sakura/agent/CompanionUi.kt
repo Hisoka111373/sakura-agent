@@ -24,11 +24,24 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 /** Offline avatar transforms, not Live2D/lip sync. Paused off-screen or when disabled. */
 @Composable
 internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaking: Boolean) {
+    val event = LocalCompanionEvent.current
+    val sequence = LocalCompanionSequence.current
+    val gesture = remember { Animatable(0f) }
+    var playedSequence by remember { mutableStateOf(sequence) }
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     DisposableEffect(lifecycle) {
         val observer=LifecycleEventObserver { _,_ -> resumed=lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
         lifecycle.addObserver(observer); onDispose { lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(sequence, motion, resumed) {
+        gesture.snapTo(0f)
+        val fresh = sequence != playedSequence
+        playedSequence = sequence
+        if(fresh && motion && resumed && event in listOf("Saludo", "Saltito", "Lista")) {
+            gesture.animateTo(1f,tween(1200,easing=LinearEasing))
+            gesture.snapTo(0f)
+        }
     }
     val values=if(motion && resumed) {
         val transition=rememberInfiniteTransition(label="Sakura companion")
@@ -37,9 +50,12 @@ internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaki
         val scale by transition.animateFloat(1f,if(speaking) 1.075f else 1.025f,infiniteRepeatable(tween(if(speaking) 320 else 2400),RepeatMode.Reverse),label="voice pulse")
         Triple(bob,tilt,scale)
     } else Triple(0f,0f,1f)
+    val wave = kotlin.math.sin(gesture.value * kotlin.math.PI.toFloat() * 6f)
+    val hop = if(event == "Saltito" || event == "Lista") -kotlin.math.abs(wave) * 12f else 0f
+    val greetingTilt = if(event == "Saludo") wave * 13f else wave * 3f
     val density=LocalDensity.current.density
     Image(painterResource(R.drawable.sakura_avatar),"Sakura: ${if(speaking) "hablando" else if(thinking) "pensando" else "contigo"}",
-        Modifier.size(size).graphicsLayer { translationY=values.first*density; rotationZ=values.second; scaleX=values.third; scaleY=values.third }.clip(CircleShape),contentScale=ContentScale.Crop)
+        Modifier.size(size).graphicsLayer { translationY=(values.first+hop)*density; rotationZ=values.second+greetingTilt; scaleX=values.third; scaleY=values.third }.clip(CircleShape),contentScale=ContentScale.Crop)
 }
 
 @Composable
@@ -50,7 +66,7 @@ internal fun EngineSelector(vm: SakuraViewModel) {
         TextButton(enabled=!vm.busy,onClick={vm.page="APIs"}) { Text("Configurar") }
     }
     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-        Text("Pensamiento")
+        Text("Bajo: ágil · Alto: detallado")
         ThinkingPolicy.levels.forEach { effort -> FilterChip(vm.skills.config.effort==effort,{vm.skills.effort(effort)},enabled=!vm.busy,label={Text(effort)}) }
     }
 }
@@ -60,14 +76,19 @@ internal fun CompanionCard(vm: SakuraViewModel, speaking: Boolean, greet: () -> 
     Card { Row(Modifier.fillMaxWidth().padding(10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         AnimatedMascot(60.dp,vm.mascotMotion,vm.generating,speaking)
         Column(Modifier.weight(1f)) {
-            Text(if(speaking) "Sakura está hablando" else if(vm.generating) "Estoy preparando tu respuesta…" else "¡Hola! Vamos paso a paso.",style=MaterialTheme.typography.titleSmall)
+            Text(vm.companionPhrase,style=MaterialTheme.typography.titleSmall)
             Text(if(vm.generating) "${vm.generatedTokens} tokens · puedes detener" else "Tu compañera para aprender y crear",style=MaterialTheme.typography.bodySmall)
         }
-        TextButton(enabled=!vm.busy,onClick=greet) { Text("Saludar") }
+        Column {
+            TextButton(enabled=!vm.busy,onClick=greet) { Text("Saludar") }
+            TextButton(enabled=!vm.busy,onClick=vm::playfulCompanion) { Text("Saltito") }
+        }
     } }
 }
 internal val LocalMascotMotion = compositionLocalOf { true }
 internal val LocalMascotSpeaking = compositionLocalOf { false }
+internal val LocalCompanionEvent = compositionLocalOf { "Saludo" }
+internal val LocalCompanionSequence = compositionLocalOf { 0L }
 
 @Composable
 internal fun mascotMotionActive(): Boolean {

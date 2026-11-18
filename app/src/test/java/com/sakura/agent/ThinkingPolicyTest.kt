@@ -5,7 +5,7 @@ import org.junit.Test
 
 class ThinkingPolicyTest {
     private fun gemini(effort: String) = TextProtocol.payload(TextConfig("Gemini","gemini-3.1-flash-lite",effort=effort),listOf(ChatMessage("Prueba",false)))
-    @Test fun localOutputBounds() { assertEquals(192,ThinkingPolicy.localTokens("Bajo")); assertEquals(384,ThinkingPolicy.localTokens("Alto")) }
+    @Test fun localOutputBounds() { assertEquals(160,ThinkingPolicy.localTokens("Bajo")); assertEquals(384,ThinkingPolicy.localTokens("Alto")) }
     @Test fun cooperativeTimeLimits() { assertEquals(45000L,ThinkingPolicy.localTimeoutMs("Bajo")); assertEquals(90000L,ThinkingPolicy.localTimeoutMs("Alto")) }
     @Test fun lessHistoryInFastMode() { assertEquals(2,ThinkingPolicy.chatHistory("Bajo")); assertEquals(6,ThinkingPolicy.chatHistory("Alto")) }
     @Test fun fewerMemoryNotes() { assertEquals(4,ThinkingPolicy.memories("Bajo")); assertEquals(12,ThinkingPolicy.memories("Alto")) }

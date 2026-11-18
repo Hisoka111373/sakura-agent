@@ -116,11 +116,13 @@ internal fun GardenPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Un
                     SakuraMascot(size = 86.dp, speaking = vm.starterDownloading)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("Sakura te escucha", color = SakuraPink, fontWeight = FontWeight.Bold)
+                        Text(vm.companionPhrase, color = SakuraAqua, fontSize = 12.sp)
                         Text(if (vm.autoSpeak) "La voz automática está activada. También puedes pedirle un saludo." else "Puedes pedirle un saludo o activar la lectura automática en el chat.", fontSize = 12.sp)
                         Row {
                             TextButton(onClick = vm::speakGreeting) { Text("Escuchar saludo") }
                             TextButton(onClick = { if(vm.autoSpeak) vm.updateAutoSpeak(false) else confirm("Leer respuestas en voz alta con voz local, solo en primer plano. Personas cercanas pueden oírlas.") { vm.updateAutoSpeak(true) } }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
                         }
+                        TextButton(enabled=!vm.busy,onClick=vm::playfulCompanion) { Text("¡Un saltito!") }
                     }
                 }
             }

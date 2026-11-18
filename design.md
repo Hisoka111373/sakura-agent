@@ -25,3 +25,5 @@ Voz automática opcional, solo voz local y primer plano; botón Silencio visible
 
 No hay render móvil físico/emulador disponible; validar Kotlin/Compose/API35,
 JVM/recursos y CI Android. No afirmar prueba visual en dispositivo.
+## 0.8 companion motion
+Preserve all original WebP art/night pink/turquoise. Avatar transforms only: finite greeting tilt, two/three small hops, breathing, thinking sway, real TTS pulse. No lip-sync claim. Pause while backgrounded/disabled; never replay background events. Local phrase card, no network/token usage.
