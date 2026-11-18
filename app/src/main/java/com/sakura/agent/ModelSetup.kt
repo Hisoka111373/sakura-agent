@@ -42,10 +42,10 @@ internal fun StarterModelCard(vm: SakuraViewModel, confirm: (String, () -> Unit)
                 }
                 vm.starterError.isNotBlank() -> {
                     Text("Error: ${vm.starterError}", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                    Button(enabled = !vm.busy, onClick = vm::downloadStarter) { Text("Reintentar descarga") }
+                    Button(enabled = !vm.busy, onClick = { confirm("Descargar Qwen2.5 1.5B: 1.1 GB desde Hugging Face, verificar SHA-256 y cargar en CPU. Requiere Internet autorizado; puede consumir datos. Puedes cancelar.",vm::downloadStarter) }) { Text("Reintentar descarga") }
                 }
                 !vm.starterReady -> {
-                    Button(enabled = !vm.busy, onClick = vm::downloadStarter) { Text("Descargar modelo ahora · 1.1 GB") }
+                    Button(enabled = !vm.busy, onClick = { confirm("Descargar Qwen2.5 1.5B: 1.1 GB desde Hugging Face, verificar SHA-256 y cargar en CPU. Requiere Internet autorizado; puede consumir datos. Puedes cancelar.",vm::downloadStarter) }) { Text("Descargar modelo ahora · 1.1 GB") }
                     Text("Usa Wi-Fi si puedes. La descarga se puede cancelar y no se incluye en la APK.", fontSize = 11.sp)
                 }
                 else -> Text("Modelo cargado: ${vm.loadedModel?.name ?: "sí"}", fontSize = 12.sp)

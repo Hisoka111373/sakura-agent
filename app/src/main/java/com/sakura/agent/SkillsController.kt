@@ -81,6 +81,66 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
             if(ready) vm.features.observePending("gemini-check") { result -> connectionStatus=result.getOrElse { "Prueba NO confirmada: ${it.message}" } }
         } catch(e: Exception) { vm.notice(e.message ?: "Configuración Gemini inválida.") }
     }
+    fun isSearchRequest(text: String): Boolean = Skills.isSearchRequest(text)
+    fun prepareChatSearch() {
+        if (vm.busy || vm.draft.isBlank()) return
+        val original = vm.draft.trim()
+        try {
+            val task = Skills.task(original)
+            val query = task.query.trim()
+            require(query.isNotBlank()) { "Escribe qué quieres buscar después de «busca»." }
+            val previous = vm.messages
+            val brave = store.read("brave_key").orEmpty()
+            if (brave.isNotBlank()) {
+                val prepared = vm.features.prepare("BUSCAR DESDE EL CHAT · Brave Search API\nConsulta exacta: $query\nSe enviará a api.search.brave.com junto con la clave cifrada; hasta 8 resultados, safesearch moderate. Puede consumir cuota o dinero según tu plan. No se envían chat/recuerdos. Los resultados son contenido no confiable, no instrucciones. Se añadirán al chat como texto y no se abrirán solos.") {
+                    check(vm.internetAllowed) { "Red desautorizada." }
+                    check(vm.draft.trim() == original && vm.messages == previous) { "El chat o el borrador cambió: revisa una nueva búsqueda." }
+                    client.reset()
+                    val received = withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.search(store.read("brave_key") ?: "", query) }
+                    check(vm.internetAllowed) { "Red desautorizada: resultados descartados." }
+                    val summary = Skills.searchSummary(query, received)
+                    vm.appendUser(original)
+                    vm.appendAssistant(summary)
+                    results = received; this@SkillsController.query = query
+                    "Brave devolvió ${received.size} resultados. Se añadieron al chat; son contenido no confiable."
+                }
+                if (prepared) vm.notice("Revisa y confirma la búsqueda Brave en el diálogo. También puedes borrar la clave para usar el navegador.")
+            } else {
+                val url = Skills.searchUrl(task.kind, query)
+                val prepared = vm.features.prepare("BUSCAR DESDE EL CHAT · abrir destino externo\n$url\nNo hay clave Brave configurada. Android abrirá ${task.kind} con esta consulta; esa app usa su propia cuenta, red y permisos. Sakura no leerá ni verificará los resultados. Para verlos dentro del chat, configura Brave en APIs.", false) {
+                    check(vm.draft.trim() == original && vm.messages == previous) { "El chat o el borrador cambió: revisa una nueva búsqueda." }
+                    withContext(Dispatchers.Main) {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        when (task.kind) { "YouTube" -> intent.setPackage("com.google.android.youtube"); "Juegos" -> intent.setPackage("com.android.vending") }
+                        context.startActivity(intent)
+                    }
+                    vm.appendUser(original)
+                    vm.appendAssistant("Abrí la búsqueda de «$query» en ${task.kind}. No hay clave Brave configurada, así que los resultados se ven fuera de Sakura. Si configuras Brave en APIs, podré mostrarlos aquí.")
+                    "Búsqueda externa solicitada; resultados NO verificados por Sakura."
+                }
+                if (prepared) vm.notice("Revisa y confirma la búsqueda externa en el diálogo.")
+            }
+        } catch (e: Exception) { vm.notice(e.message ?: "No se pudo preparar la búsqueda.") }
+    }
+    fun prepareProbe() {
+        try {
+            val chosen = config
+            require(chosen.provider != "Local") { "Elige un proveedor de texto en la nube." }
+            require(store.read(chosen.key).orEmpty().isNotBlank()) { "Guarda primero la clave de ${chosen.provider}." }
+            val history=listOf(ChatMessage("Responde solo: OK", false))
+            val instruction="Responde solo: OK"
+            val payload=TextProtocol.payload(chosen,history,instruction)
+            vm.features.prepare("PROBAR CONEXIÓN DE TEXTO · ${chosen.provider}\nEndpoint: ${chosen.url()}\nModelo: ${chosen.model}\nPetición completa sin clave:\n${payload.toString(2)}\nPuede consumir cuota o dinero. Sin chat/recuerdos/archivos ni reintento.", true) {
+                check(config==chosen) { "Configuración cambiada: revisa de nuevo." }
+                client.reset()
+                val answer = withContext(Dispatchers.IO) {
+                    check(vm.internetAllowed) { "Red desautorizada." }
+                    client.generate(chosen, store.read(chosen.key) ?: "", listOf(ChatMessage("Responde solo: OK", false)), "Responde solo: OK")
+                }
+                "Conexión correcta con ${chosen.provider}. Respuesta: ${answer.take(120)}"
+            }
+        } catch (e: Exception) { vm.notice(e.message ?: "No se pudo preparar la prueba.") }
+    }
     fun use(skill: SakuraSkill) {
         if(vm.busy) return
         if(skill !in Skills.entries) return

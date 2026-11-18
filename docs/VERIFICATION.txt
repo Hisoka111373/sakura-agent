@@ -6,7 +6,7 @@ JUnit version 4.13.2
 ................................................................
 100 pure JVM tests: policy, network, catalog, plans, skills, routing, text protocols, screen guards, strict agent JSON, tool validation, cloud context, WebText and thinking settings
 
-OK (100 tests)
+OK (106 tests)
 
 
 C++ JNI syntax against pinned llama.cpp: PASS

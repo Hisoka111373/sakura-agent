@@ -66,3 +66,16 @@ internal fun CompanionCard(vm: SakuraViewModel, speaking: Boolean, greet: () -> 
         TextButton(enabled=!vm.busy,onClick=greet) { Text("Saludar") }
     } }
 }
+internal val LocalMascotMotion = compositionLocalOf { true }
+internal val LocalMascotSpeaking = compositionLocalOf { false }
+
+@Composable
+internal fun mascotMotionActive(): Boolean {
+    val lifecycle=LocalLifecycleOwner.current.lifecycle
+    var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+    DisposableEffect(lifecycle) {
+        val observer=LifecycleEventObserver { _,_ -> resumed=lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+        lifecycle.addObserver(observer); onDispose { lifecycle.removeObserver(observer) }
+    }
+    return LocalMascotMotion.current && resumed
+}

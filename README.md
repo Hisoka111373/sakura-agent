@@ -28,6 +28,15 @@ El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada
 
 Ver [docs/FEATURES-0.7.md](docs/FEATURES-0.7.md) para configuración y límites reales.
 
+## Modelo inicial y búsqueda conservados
+
+Centro de Modelos con Qwen2.5 1.5B Q4_K_M (~1.1 GB), SHA-256 y licencia,
+catálogo filtrable e importación privada. **Descarga manual confirmada y con Internet
+autorizado**; no se cambia el permiso de red automáticamente. Modelo no incluido en APK.
+Buscar desde Chat conserva revisión Brave o destino externo. APIs conserva campo oculto
+para clave y sugerencias editables; salvo Gemini verificado, las sugerencias heredadas
+no garantizan disponibilidad: usa un ID vigente de tu proveedor.
+
 ## Ampliación 0.6 — integración del agente pendiente
 
 - Nueva pestaña **Agente**: hasta 10 propuestas por sesión con GGUF o API de texto.
@@ -141,7 +150,7 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 | GitHub | Leer/listar, ramas/commits/PR, crear ramas y archivos, editar/borrar con SHA y crear PR; escrituras confirmadas. |
 | Android | Listar/abrir apps visibles con confirmación. Pantalla: búsqueda accesible manual solo en apps permitidas, no control general. |
 | APK | Revisar la APK seleccionada: paquete, versión, SDK, permisos, hashes de certificado y archivo, bibliotecas. Sin instalar, ejecutar ni extraer ZIP. No es antivirus ni verificación completa de firma. |
-| Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local. |
+| Voz | Dictado on-device si Android lo ofrece; de lo contrario, requiere autorización de red. Rellena el borrador, nunca envía automáticamente. TTS con voz española instalada, priorizando local; lectura automática opcional y botón de saludo. |
 | Privacidad | Red desautorizada al iniciar. Chat en RAM; memoria/credenciales cifradas. fal.ai recibe prompt visual confirmado; APIs de texto reciben contexto confirmado sin notas guardadas. No hay analítica añadida ni envío de pantalla. FLAG_SECURE. |
 
 ## Requisitos y compatibilidad
@@ -158,16 +167,14 @@ estáticas indicadas al final no sustituyen un build Android ni pruebas físicas
 - Usa modelos de fuentes confiables. Archivos GGUF/APK no confiables pueden tener riesgos
   de parser; esta app no ofrece aislamiento de seguridad contra vulnerabilidades nativas.
 
-### Modelo inicial sugerido (no incluido)
+### Modelo inicial (descarga confirmada)
 
-Como primer candidato de prueba para 8 GB, usa el catálogo para descargar
-[Qwen2.5-3B-Instruct-GGUF oficial](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
-en Q4_K_M. Su licencia específica debe revisarse antes de usarlo. La alternativa menor es
-[Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
-Para enfocarte en código puedes evaluar
-[Qwen2.5-Coder-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF).
-Revisa su licencia y tarjeta antes de descargar. No se redistribuyen pesos, no se añade
-descarga automática y ninguno de estos candidatos se ha ejecutado en esta entrega.
+El modelo inicial de 0.7 es
+[Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF),
+archivo `qwen2.5-1.5b-instruct-q4_k_m.gguf`, Apache 2.0. Sakura permite descargarlo desde Modelos, comprueba tamaño/SHA-256 y lo carga. No se
+redistribuyen pesos dentro del repositorio ni de la APK. Para 8 GB también puedes
+probar [Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
+desde el catálogo; revisa su licencia. La descarga requiere confirmación y el modelo se puede borrar desde Modelos.
 
 ## Compilar desde tu computadora
 
@@ -208,11 +215,15 @@ Se eliminó la copia redundante en `github/workflows/`, que GitHub no ejecuta.
 
 ## Primer uso
 
-1. Modelos → Importar GGUF → Cargar y confirmar. Espera la carga antes de chatear.
-2. Privacidad → selecciona nivel y humor. Mantén la red desactivada para empezar.
+1. Instala la APK 0.7.1. Autoriza Internet y confirma la descarga inicial (~1.1 GB)
+   desde Modelos, o importa un GGUF. Se verifica y carga; puedes cancelar.
+2. Privacidad → nivel, humor, voz automática opcional y carga del modelo ya instalado.
 3. Memoria → guarda notas concretas. No se extraen recuerdos del chat automáticamente.
-4. Chat → escribe un mensaje corto. Micrófono pide permiso; revisa el dictado antes de enviar.
-5. Herramientas → selecciona archivos o apps. No se pide acceso general al almacenamiento,
+4. Chat → escribe un mensaje corto, dicta o pide «busca …». Micrófono pide permiso;
+   revisa el dictado antes de enviar. La búsqueda siempre pide confirmación.
+5. APIs → elige proveedor, modelo sugerido y guarda la clave cifrada; usa «Probar
+   conexión» solo si aceptas la petición mínima. Local no necesita clave.
+6. Herramientas → selecciona archivos o apps. No se pide acceso general al almacenamiento,
    instalación de paquetes, root ni QUERY_ALL_PACKAGES. Accesibilidad opcional solo
    si tú la activas manualmente para Pantalla; consulta la divulgación antes.
 
@@ -248,7 +259,7 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 100 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente y pensamiento: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- 106 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente y pensamiento: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:

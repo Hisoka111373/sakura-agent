@@ -98,9 +98,9 @@ privados se borran al desinstalar. El cifrado Keystore no migra entre certificad
 
 ## Verificación
 
-100 pruebas JVM PASS; todos Kotlin/Compose/API35 compilan estáticamente; C++17/JNI
+106 pruebas JVM PASS; todos Kotlin/Compose/API35 compilan estáticamente; C++17/JNI
 con `-Wall -Wextra -Werror` contra revisión fijada PASS. Gemini real desde cliente JVM
-PASS. CI Android del nuevo commit debe aprobar para publicar APK0.7.
+PASS. CI Android del nuevo commit debe aprobar para publicar APK0.7.1.
 
 Pendiente en teléfono: arranque, JNI y progreso real, latencia/RAM pico/temperatura,
 Keystore, voces instaladas, animación/rotación, pruebas móviles Gemini, descargas,

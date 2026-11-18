@@ -170,7 +170,7 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArra
         if (callback) {
             auto cls = env->GetObjectClass(callback);
             method = env->GetMethodID(cls, "onProgress", "(I[B)V"); env->DeleteLocalRef(cls);
-            if (!method) throw std::runtime_error("Invalid progress callback.");
+            if (!method) { env->ExceptionClear(); throw std::runtime_error("Invalid progress callback."); }
         }
         if (!model || !ctx || !sampler) throw std::runtime_error("Load a GGUF model first.");
         auto tokens = tokenize(format(env, system, roles, texts));
