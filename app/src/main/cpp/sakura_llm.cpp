@@ -195,7 +195,7 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArra
                 size = llama_token_to_piece(vocab, token, piece.data(), piece.size(), 0, false);
             }
             if (size > 0) output.append(piece.data(), size);
-            if (callback && (step == 0 || (step + 1) % 4 == 0)) progress(env,callback,method,step+1,output);
+            if (callback && (step == 0 || (step + 1) % 8 == 0)) progress(env,callback,method,step+1,output);
             batch.n_tokens = 1; batch.token[0] = token;
             batch.pos[0] = tokens.size() + step;
             batch.n_seq_id[0] = 1; batch.seq_id[0][0] = 0; batch.logits[0] = true;

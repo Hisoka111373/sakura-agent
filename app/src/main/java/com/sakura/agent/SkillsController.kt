@@ -157,11 +157,12 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
             val chosen=config; val original=vm.draft; val previous=vm.messages
             val manual=manualSkill; val skill=markSelected(original)
             val system=TextProtocol.system+Skills.guidance(skill)+ThinkingPolicy.guidance(chosen.effort)+(if(vm.kawaii) ThinkingPolicy.kawaii else "")
-            val history=previous.takeLast(ThinkingPolicy.chatHistory(chosen.effort))+ChatMessage(original.trim(),false)
+            val history=ThinkingPolicy.boundedHistory(previous,chosen.effort)+ChatMessage(original.trim(),false)
             val payload=TextProtocol.payload(chosen,history,system)
             vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model} · esfuerzo ${chosen.effort}\n\nEnvía hasta ${ThinkingPolicy.chatHistory(chosen.effort)/2} parejas anteriores y tu borrador. NO recuerdos privados, archivos ni pantalla. Puede tener coste; ${ThinkingPolicy.cloudTokens(chosen)} tokens máximos de salida (incluye pensamiento en Gemini) NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
                 check(vm.draft==original && vm.messages==previous && config==chosen && manualSkill==manual) { "El chat/configuración/skill cambió: revisa una nueva solicitud." }
                 client.reset()
+                vm.reactCompanion("Pensando")
                 val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.generate(chosen,store.read(chosen.key)?:"",history,system) }
                 check(vm.internetAllowed) { "Red desautorizada: respuesta no insertada." }
                 vm.receiveCloud(previous,original,answer)

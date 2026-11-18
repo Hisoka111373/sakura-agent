@@ -47,6 +47,20 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     var kawaii by mutableStateOf(true); private set
     var mascotMotion by mutableStateOf(true); private set
     var autoVoice by mutableStateOf(false); private set
+    var companionEvent by mutableStateOf("Saludo"); private set
+    var companionSequence by mutableStateOf(0L); private set
+    var companionPhrase by mutableStateOf("¡Hola! ¿Qué hacemos florecer hoy?"); private set
+    private var lastCompanionVoice = 0L
+    fun reactCompanion(event: String, speak: Boolean = true) {
+        if(event !in CompanionPolicy.events) return
+        companionEvent = event; companionSequence++
+        companionPhrase = CompanionPolicy.phrase(event, companionSequence)
+        val now = android.os.SystemClock.elapsedRealtime()
+        if(speak && autoVoice && now-lastCompanionVoice >= 8000L) {
+            pendingSpeech = companionPhrase; lastCompanionVoice = now
+        }
+    }
+    fun playfulCompanion() { if(!busy) reactCompanion("Saltito") }
     var explicitSpeech by mutableStateOf(""); private set
     fun consumeExplicitSpeech(): String = explicitSpeech.also { explicitSpeech = "" }
     var pendingSpeech by mutableStateOf(""); private set
@@ -210,12 +224,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun speakGreeting() {
-        explicitSpeech = listOf(
-            "Hola, sempai. Soy Sakura. ¿Qué vamos a crear hoy?",
-            "Ya estoy aquí. Cuéntame tu idea y la hacemos florecer.",
-            "¡Sugoi! Estoy lista. ¿Empezamos con código, un plan o una búsqueda?",
-            "Qué gusto verte. Respira, escribe tu idea y vamos a tu ritmo."
-        ).random()
+        reactCompanion("Saludo", speak=false)
+        explicitSpeech = companionPhrase
     }
 
     internal fun appendUser(text: String) {
@@ -225,6 +235,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
 
     internal fun appendAssistant(text: String) {
         messages = messages + ChatMessage(text, true)
+        reactCompanion("Lista", speak=false)
         if (autoSpeak) requestSpeech(text)
     }
 
@@ -264,6 +275,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
         check(messages == previous && draft == original) { "El borrador cambió; respuesta no insertada." }
         messages = previous + ChatMessage(original.trim(),false) + ChatMessage(answer,true)
+        reactCompanion("Lista", speak=false)
         if(autoVoice) pendingSpeech = answer
         draft = ""
     }
@@ -289,7 +301,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         busy = true; status = label
         viewModelScope.launch {
             try { block() }
-            catch (error: Exception) { status = "Error: ${error.message ?: error.javaClass.simpleName}" }
+            catch (error: Exception) { reactCompanion("Error", speak=false); status = "Error: ${error.message ?: error.javaClass.simpleName}" }
             finally { busy = false; generating = false; generationId++; partialReply = ""; generatedTokens = 0 }
         }
     }
@@ -357,7 +369,13 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         status = "GGUF borrado del almacenamiento privado."
     }
 
-    fun clearChat() { if (!busy) { messages = emptyList(); draft = ""; status = "Chat borrado. Las notas de memoria no cambian." } }
+    fun clearChat() { if (!busy) { messages = emptyList(); draft = ""; reactCompanion("Saludo", speak=false); status = "Chat borrado. Las notas de memoria no cambian." } }
+
+    fun continueAnswer() {
+        if(busy || !CompanionPolicy.canContinue(messages,draft)) return
+        draft = CompanionPolicy.continuation
+        send() // One explicit request; cloud still requires its payload confirmation.
+    }
 
     fun send() {
         if (busy || draft.isBlank()) return
@@ -368,7 +386,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
         val previous = messages
         val effort = skills.config.effort
-        val history = previous.takeLast(ThinkingPolicy.chatHistory(effort)) + ChatMessage(text, false)
+        val history = ThinkingPolicy.boundedHistory(previous,effort) + ChatMessage(text, false)
         val skill = skills.markSelected(text)
         val system = AgentPolicy.systemPrompt(level, humor, memories.takeLast(ThinkingPolicy.memories(effort))) + Skills.guidance(skill) +
             ThinkingPolicy.guidance(effort) + if(kawaii) ThinkingPolicy.kawaii else ""
@@ -376,11 +394,13 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         work("Sakura está pensando localmente…") {
             engine?.nativeResetCancellation()
             generating = true
+            reactCompanion("Pensando")
             try {
                 val start = android.os.SystemClock.elapsedRealtime()
                 val callback = progress()
                 val answer = withContext(nativeWorker) { native().generate(system, history,ThinkingPolicy.localTokens(effort),ThinkingPolicy.localTimeoutMs(effort),callback) }
                 messages = messages + ChatMessage(answer, true)
+                reactCompanion("Lista", speak=false)
                 if(autoVoice) pendingSpeech = answer
                 status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s · esfuerzo $effort. Contexto acotado; no es garantía de rendimiento."
             } catch (error: Exception) {
@@ -391,7 +411,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun cancelGeneration() {
-        if (generating) { engine?.nativeCancel(); status = "Cancelación solicitada…" }
+        if (generating) { engine?.nativeCancel(); reactCompanion("Pausa", speak=false); status = "Cancelación solicitada…" }
     }
 
     fun importSource(uri: Uri) = work("Leyendo código seleccionado…") {
