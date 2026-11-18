@@ -43,6 +43,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val Night = Color(0xFF100D1C)
 private val Panel = Color(0xFF1B172B)
@@ -94,6 +96,21 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
     val chooseModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::importModel) }
     val chooseCode = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::importSource) }
     val chooseApk = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::inspectApk) }
+    val store = remember(context) { PrivateStore(context.applicationContext) }
+    var phoneFolder by remember { mutableStateOf(store.read(PHONE_FOLDER_KEY)) }
+    val chooseFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { selected ->
+            vm.workFeature("Guardando carpeta elegida…") {
+                withContext(Dispatchers.IO) {
+                    try { context.contentResolver.takePersistableUriPermission(selected, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    catch (e: SecurityException) { throw IllegalStateException("Android no concedió acceso persistente a esa carpeta; elige otra.", e) }
+                    store.write(PHONE_FOLDER_KEY, selected.toString())
+                }
+                phoneFolder = selected.toString()
+                vm.notice("Carpeta guardada localmente. Solo se accede a ella cuando confirmas una lectura.")
+            }
+        }
+    }
     var exportFile by remember { mutableStateOf<DownloadedFile?>(null) }
     val exportDownload = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         val selected = exportFile
@@ -116,7 +133,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                 TextButton(onClick = { voice.stop(); vm.notice("Voz detenida.") }) { Text("Silencio") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Jardín", "Chat", "Modelos", "Skills", "APIs", "Buscar", "Agente", "Privacidad", "Plan", "Memoria", "Descargas", "Crear", "Mensajes", "Herramientas", "Pantalla", "GitHub").forEach { page ->
+                listOf("Jardín", "Chat", "Modelos", "Skills", "APIs", "Buscar", "Agente", "Privacidad", "Plan", "Memoria", "Descargas", "Crear", "Mensajes", "Herramientas", "Archivos", "Pantalla", "GitHub").forEach { page ->
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
@@ -134,6 +151,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                     "Memoria" -> MemoryPage(vm, confirm)
                     "Modelos" -> ModelsPage(vm, { chooseModel.launch(arrayOf("*/*")) }, confirm)
                     "Herramientas" -> ToolsPage(vm, { chooseCode.launch(arrayOf("*/*")) }, { chooseApk.launch(arrayOf("*/*")) }, confirm)
+                    "Archivos" -> FilesPage(vm, phoneFolder, { chooseFolder.launch(null) })
                     "GitHub" -> GithubPage(vm)
                     "Skills" -> SkillsPage(vm)
                     "Buscar" -> SearchPage(vm)
@@ -354,12 +372,35 @@ private fun ToolsPage(vm: SakuraViewModel, chooseCode: () -> Unit, chooseApk: ()
     val context = LocalContext.current
     var apps by remember { mutableStateOf(emptyList<LaunchableApp>()) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Info("Estas herramientas se ejecutan solo con tus botones. Sakura no puede activar acciones desde una respuesta del modelo. No se ejecuta código ni se instalan APK.") }
+        item { Info("Estas herramientas se ejecutan solo con tus botones y requieren revisar una vista previa. Sakura no puede activar acciones desde una respuesta del modelo sin tu confirmación. Analizar no ejecuta código; abrir o instalar una APK pide tu confirmación y la de Android.") }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = !vm.busy, onClick = chooseCode) { Text("Seleccionar código · local") }
                 Text("Python, Java, Kotlin, HTML y JavaScript: lectura de texto y ayuda mediante el modelo. No es un compilador ni un depurador ejecutable.", fontSize = 13.sp)
                 Button(enabled = !vm.busy, onClick = chooseApk) { Text("Analizar APK seleccionada · local") }
+                Text("APK seleccionada: ${vm.selectedApkUri ?: "ninguna"}", color = Aqua, fontSize = 12.sp)
+                Button(enabled = !vm.busy && vm.selectedApkUri != null, onClick = {
+                    vm.selectedApkUri?.let { uri ->
+                        vm.features.prepare("ABRIR APK SELECCIONADA\nURI exacta: $uri\nAndroid pedirá su propia confirmación para ver/instalar. Sakura no verifica seguridad, firma ni compatibilidad; no es instalación silenciosa. La URI puede caducar al reiniciar: vuelve a analizar la APK si hace falta.",false) {
+                            withContext(Dispatchers.Main) {
+                                context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive")
+                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                            "Android aceptó abrir la APK; Sakura no ha instalado ni verificado nada."
+                        }
+                    }
+                }) { Text("Abrir APK seleccionada") }
+                Button(enabled = !vm.busy && vm.selectedApkUri != null, onClick = {
+                    vm.selectedApkUri?.let { uri ->
+                        vm.features.prepare("INSTALAR APK SELECCIONADA\nURI exacta: $uri\nAndroid mostrará su propia pantalla de instalación y pedirá confirmación. Sakura no verifica seguridad, permisos ni firma; NO es instalación silenciosa. Puede pedir permiso de «instalar apps desconocidas» que tú debes conceder en Ajustes.",false) {
+                            withContext(Dispatchers.Main) {
+                                context.startActivity(Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(uri,"application/vnd.android.package-archive")
+                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                            }
+                            "Solicitud de instalación entregada a Android; resultado NO verificado por Sakura."
+                        }
+                    }
+                }) { Text("Instalar APK seleccionada") }
                 Button(enabled = !vm.busy, onClick = {
                     val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                     apps = context.packageManager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))

@@ -79,6 +79,7 @@ object Skills {
         return when(kind) {
             "YouTube" -> "https://www.youtube.com/results?search_query=$q"
             "Juegos" -> "https://play.google.com/store/search?q=$q&c=apps"
+            "Google" -> "https://www.google.com/search?q=$q"
             "Web" -> "https://search.brave.com/search?q=$q"
             else -> throw IllegalArgumentException("Destino desconocido.")
         }
@@ -97,4 +98,20 @@ object ScreenPolicy {
     fun click(label: String): Boolean = safe(label,false) &&
         Regex("^(search|buscar|busqueda|search youtube|buscar en youtube|search in|buscar en|back|atras|close|cerrar)( .*)?$")
             .matches(Skills.normalized(label.trim()))
+    fun visibleText(label: String, value: String?, password: Boolean, editable: Boolean): String? {
+        if (password || editable || !safe(label,password)) return null
+        val text = value?.trim().orEmpty().take(2000)
+        if (text.isEmpty() || blocked.containsMatchIn(Skills.normalized(text))) return null
+        return text
+    }
+    fun visibleTextSummary(parts: List<String>, limit: Int = 4000): String {
+        val seen = HashSet<String>()
+        val result = StringBuilder()
+        parts.forEach { part ->
+            if (part.isBlank() || !seen.add(part) || result.length >= limit) return@forEach
+            if (result.isNotEmpty()) result.append('\n')
+            result.append(part.take(limit - result.length))
+        }
+        return result.toString()
+    }
 }

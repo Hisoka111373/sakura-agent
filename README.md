@@ -10,6 +10,23 @@ por PR #7. La0.6 pasó CI43749469074 y se integró por PR #8. Para0.7 consulta s
 PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
 
+## Ampliación 0.9 — modo local estable y control del teléfono supervisado
+
+- **Arreglo del «se queda pensando»**: presupuesto determinista del prompt local
+  (3400 caracteres en Bajo / 3000 en Alto). El mensaje nuevo se conserva siempre;
+  el historial antiguo y las notas se recortan primero. El estado «Pensando» se
+  limpia en éxito, error, timeout y cancelación; el deadline nativo cubre también
+  el procesamiento del contexto. `Continuar` sigue siendo una petición explícita
+  con borrador vacío, y el chat conserva **Local / En línea**.
+- **GGUF pequeños** verificados (Qwen2.5 0.5B Q4_K_M y 1.5B Q3_K_M). Imagen y
+  vídeo quedan marcados como **descarga externa**: Sakura no tiene motor local
+  para ejecutarlos.
+- **Teléfono bajo revisión**: búsqueda en Google en navegador externo, lectura de
+  texto visible y escritura en campos seguros mediante Accesibilidad, archivos de
+  una carpeta elegida con SAF, y apertura/instalación de APK con confirmación y
+  permiso `REQUEST_INSTALL_PACKAGES`. Ninguna acción se ejecuta automáticamente.
+  Ver [docs/FEATURES-0.9.md](docs/FEATURES-0.9.md).
+
 ## Ampliación 0.7 — Gemini, voz kawaii y respuesta acotada
 
 - Gemini `gemini-3.1-flash-lite` comprobado con petición real y con el cliente JVM

@@ -35,6 +35,9 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     var page by mutableStateOf("Jardín")
+    var selectedApkUri: Uri? = null
+        private set
+    fun setSelectedApkUri(uri: Uri?) { selectedApkUri = uri }
     var draft by mutableStateOf("")
     var status by mutableStateOf("")
         private set
@@ -261,6 +264,10 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+    private fun clearGenerationUi() {
+        generating = false; generationId++; partialReply = ""; generatedTokens = 0
+        if(companionEvent == "Pensando") companionEvent = "Saludo"
+    }
     fun consumeSpeech(): String = pendingSpeech.also { pendingSpeech = "" }
     fun mascotPreferences(newKawaii: Boolean, motion: Boolean, voice: Boolean) = work("Guardando preferencias de Sakura…") {
         withContext(Dispatchers.IO) {
@@ -301,8 +308,12 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         busy = true; status = label
         viewModelScope.launch {
             try { block() }
-            catch (error: Exception) { reactCompanion("Error", speak=false); status = "Error: ${error.message ?: error.javaClass.simpleName}" }
-            finally { busy = false; generating = false; generationId++; partialReply = ""; generatedTokens = 0 }
+            catch (error: Exception) {
+                val cancelled = error.message == "Generation cancelled."
+                reactCompanion(if(cancelled) "Pausa" else "Error", speak=false)
+                status = if(cancelled) "Generación detenida. Tu mensaje vuelve al borrador." else "Error: ${error.message ?: error.javaClass.simpleName}"
+            }
+            finally { busy = false; clearGenerationUi() }
         }
     }
 
@@ -372,7 +383,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     fun clearChat() { if (!busy) { messages = emptyList(); draft = ""; reactCompanion("Saludo", speak=false); status = "Chat borrado. Las notas de memoria no cambian." } }
 
     fun continueAnswer() {
-        if(busy || !CompanionPolicy.canContinue(messages,draft)) return
+        if(busy || draft.isNotBlank() || !CompanionPolicy.canContinue(messages,draft)) return
         draft = CompanionPolicy.continuation
         send() // One explicit request; cloud still requires its payload confirmation.
     }
@@ -388,8 +399,9 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         val effort = skills.config.effort
         val history = ThinkingPolicy.boundedHistory(previous,effort) + ChatMessage(text, false)
         val skill = skills.markSelected(text)
-        val system = AgentPolicy.systemPrompt(level, humor, memories.takeLast(ThinkingPolicy.memories(effort))) + Skills.guidance(skill) +
+        val assembled = AgentPolicy.systemPrompt(level, humor, ThinkingPolicy.localMemories(memories,effort)) + Skills.guidance(skill) +
             ThinkingPolicy.guidance(effort) + if(kawaii) ThinkingPolicy.kawaii else ""
+        val (system, localHistory) = ThinkingPolicy.fitLocalPrompt(effort, assembled, history)
         draft = ""; messages = previous + ChatMessage(text, false)
         work("Sakura está pensando localmente…") {
             engine?.nativeResetCancellation()
@@ -398,7 +410,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val start = android.os.SystemClock.elapsedRealtime()
                 val callback = progress()
-                val answer = withContext(nativeWorker) { native().generate(system, history,ThinkingPolicy.localTokens(effort),ThinkingPolicy.localTimeoutMs(effort),callback) }
+                val answer = withContext(nativeWorker) { native().generate(system, localHistory,ThinkingPolicy.localTokens(effort),ThinkingPolicy.localTimeoutMs(effort),callback) }
                 messages = messages + ChatMessage(answer, true)
                 reactCompanion("Lista", speak=false)
                 if(autoVoice) pendingSpeech = answer
@@ -406,6 +418,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             } catch (error: Exception) {
                 messages = previous; draft = text
                 throw error
+            } finally {
+                engine?.nativeResetCancellation()
             }
         }
     }
@@ -421,6 +435,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun inspectApk(uri: Uri) = work("Analizando APK localmente, sin instalarla…") {
+        selectedApkUri = uri
         toolReport = withContext(Dispatchers.IO) { LocalFiles.inspectApk(app, uri) }
         status = "Análisis estático completado; no determina si la APK es segura."
     }

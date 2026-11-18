@@ -162,10 +162,12 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArra
                                                 jint outputLimit, jlong timeoutMs, jobject callback) {
     std::lock_guard<std::mutex> guard(mutex);
     DeadlineGuard deadlineGuard;
+    cancelled.store(false);
+    deadlineNanos.store(0);
     try {
+        deadlineNanos.store(nowNanos() + timeoutMs * 1000000);
         if (outputLimit < 1 || outputLimit > 384 || timeoutMs < 1000 || timeoutMs > 120000)
             throw std::runtime_error("Invalid generation limits.");
-        deadlineNanos.store(nowNanos() + timeoutMs * 1000000);
         jmethodID method = nullptr;
         if (callback) {
             auto cls = env->GetObjectClass(callback);
@@ -173,9 +175,12 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArra
             if (!method) { env->ExceptionClear(); throw std::runtime_error("Invalid progress callback."); }
         }
         if (!model || !ctx || !sampler) throw std::runtime_error("Load a GGUF model first.");
+        if (cancelled.load() || timedOut()) throw std::runtime_error("Tiempo de contexto agotado. Acorta mensaje/notas o usa GGUF 1.5B y modo Bajo.");
         auto tokens = tokenize(format(env, system, roles, texts));
-        if (tokens.size() + static_cast<size_t>(outputLimit) >= contextSize)
-            throw std::runtime_error("Context limit exceeded (2048 tokens). Start a new chat or shorten the message and memories.");
+        constexpr int promptReserve = 64;
+        if (tokens.size() + static_cast<size_t>(outputLimit) + static_cast<size_t>(promptReserve) >= static_cast<size_t>(contextSize))
+            throw std::runtime_error("Context limit exceeded (2048 tokens). Use modo Bajo, un GGUF menor o acorta el mensaje.");
+        if (cancelled.load() || timedOut()) throw std::runtime_error("Tiempo de contexto agotado. Acorta mensaje/notas o usa GGUF 1.5B y modo Bajo.");
         llama_memory_clear(llama_get_memory(ctx), true);
         llama_sampler_reset(sampler);
         progress(env,callback,method,0,"");

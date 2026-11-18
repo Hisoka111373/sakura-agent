@@ -12,6 +12,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+const val PHONE_FOLDER_KEY = "phone_folder_uri"
+
 /** Keystore key + AES-GCM. No backups, plaintext tokens, or automatic chat persistence. */
 class PrivateStore(context: Context) {
     private val preferences = context.getSharedPreferences("sakura_private", Context.MODE_PRIVATE)

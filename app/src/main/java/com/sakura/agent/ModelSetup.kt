@@ -24,6 +24,7 @@ internal fun StarterModelCard(vm: SakuraViewModel, confirm: (String, () -> Unit)
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Modelo inicial de Sakura", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             Text("Qwen2.5 1.5B Instruct · Q4_K_M · 1.1 GB · Apache 2.0", fontSize = 12.sp)
+            Text("GGUF pequeños (0.5B Q4_K_M y 1.5B Q3_K_M) en Centro de modelos; descarga confirmada con SHA-256.", fontSize = 12.sp)
             Text(
                 "No viaja dentro de la APK. Se descarga una vez, se verifica con SHA-256 y se copia al almacenamiento privado. Después puede conversar sin Internet.",
                 fontSize = 12.sp
