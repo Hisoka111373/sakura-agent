@@ -1,3 +1,34 @@
+# Sakura Agent 0.7.1 — APK verificada
+
+- Archivo: `SakuraAgent-0.7.1-arm64-debug.apk`
+- Android 13+ (minSdk 33), ARM64; paquete `com.sakura.agent`.
+- Versión 0.7.1, versionCode 8; APK debug, no release de tienda.
+- Fuente: `578be9d5499aaf98a544ea1f2e9ed16b1a56bbc6` (PR #9).
+- GitHub Actions: https://github.com/Hisoka111373/sakura-agent/actions/runs/44217716451
+- Tamaño: 73501141 bytes.
+- SHA-256: `93a7d15923dcb17139e7b2cd8c5d3b2666a769b2f1bdc5b6e6cfbf4d929abfea`.
+- ZIP/CRC, manifiesto/ABI y firma APK v2 comprobados independientemente.
+
+Incluye Gemini comprobado desde el cliente JVM, selector Local/online, Bajo/Alto,
+progreso JNI y deadline cooperativo, mascota animada y voz local opcional confirmada.
+Conserva Jardín, 93 skills, centro de modelos y búsqueda desde chat revisada.
+No incluye claves ni pesos. Configura `gemini_key` oculta/cifrada en APIs o Privacidad,
+elige `gemini-3.1-flash-lite`, autoriza Internet y confirma la prueba real desde el móvil.
+Qwen2.5 1.5B se descarga MANUALMENTE desde Modelos con confirmación (~1.1 GB).
+
+No probado físicamente: arranque, rendimiento, JNI, TTS y accesibilidad en teléfono.
+Abrir apps ya instaladas y escribir en allowlist requiere revisión por acción;
+no controla cualquier APK ni instala automáticamente.
+
+La firma debug puede diferir de APK anteriores: Android podría rechazar la actualización.
+No desinstales sin preservar datos: recuerdos, claves y modelos privados se borran;
+el cifrado Keystore no se restaura simplemente copiando archivos.
+Las APK 0.6.0 y 0.7.0 anteriores se conservan sin cambios.
+
+---
+
+## Documentación histórica de 0.7.0 (no describe la nueva 0.7.1)
+
 # APK de Sakura Agent 0.7.0
 
 APK debug ARM64 generada por GitHub Actions desde la rama
