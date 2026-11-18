@@ -35,23 +35,24 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
         if(vm.busy || !canNext) return
         val id = revision
         val chosen = vm.skills.config
+        val system = AgentTools.prompt+ThinkingPolicy.guidance(chosen.effort)
         val history = listOf(ChatMessage(AgentTools.context(objective,observations),false))
         if(chosen.provider == "Local") {
             if(vm.loadedModel == null) { vm.notice("Carga un GGUF o configura un proveedor en APIs."); return }
             awaiting = true
             vm.workFeature("Proponiendo un paso local, sin herramientas…") {
-                try { accept(id,vm.generateAgentLocal(AgentTools.prompt,history)) }
+                try { accept(id,vm.generateAgentLocal(system,history)) }
                 finally { if(id == revision) awaiting = false }
             }
         } else {
             try {
-                val payload = TextProtocol.payload(chosen,history,AgentTools.prompt)
-                val ready = vm.features.prepare("PROPONER UN PASO EN NUBE\n${chosen.provider} · ${chosen.model}\nEndpoint: ${chosen.url()}\n\nComparte el objetivo y fragmentos de hasta dos resultados anteriores, que pueden contener código privado. NO recuerdos, chat ni pantalla. Revisa TODO el JSON abajo antes de confirmar. Puede tener coste; máximo 768 tokens no es un tope monetario. Una petición, sin reintento ni continuación automática.\nSolicitud completa sin clave:\n${payload.toString(2)}") {
+                val payload = TextProtocol.payload(chosen,history,system)
+                val ready = vm.features.prepare("PROPONER UN PASO EN NUBE\n${chosen.provider} · ${chosen.model} · esfuerzo ${chosen.effort}\nEndpoint: ${chosen.url()}\n\nComparte el objetivo y fragmentos de hasta dos resultados anteriores, que pueden contener código privado. NO recuerdos, chat ni pantalla. Revisa TODO el JSON abajo antes de confirmar. Puede tener coste; máximo ${ThinkingPolicy.cloudTokens(chosen)} tokens (incluye pensamiento en Gemini) no es un tope monetario. Una petición, sin reintento ni continuación automática.\nSolicitud completa sin clave:\n${payload.toString(2)}") {
                     check(id == revision && active && chosen == vm.skills.config) { "La sesión/configuración cambió." }
                     text.reset()
                     val answer = withContext(Dispatchers.IO) {
                         check(vm.internetAllowed)
-                        text.generate(chosen,store.read(chosen.key).orEmpty(),history,AgentTools.prompt)
+                        text.generate(chosen,store.read(chosen.key).orEmpty(),history,system)
                     }
                     check(vm.internetAllowed && id == revision) { "Respuesta descartada por cancelación." }
                     accept(id,answer)

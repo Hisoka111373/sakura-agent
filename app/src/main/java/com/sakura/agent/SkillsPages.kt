@@ -65,7 +65,7 @@ internal fun TextApiPage(vm: SakuraViewModel) {
     var endpoint by remember(current) { mutableStateOf(current.endpoint) }
     var key by remember(provider) { mutableStateOf("") }
     var visible by remember { mutableStateOf(false) }
-    val config = TextConfig(provider, model.trim(), endpoint.trim())
+    val config = TextConfig(provider, model.trim(), endpoint.trim(),current.effort)
     val keyConfigured = config.key in vm.features.configured
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Info("Local por defecto y sin claves. API opcional: cada respuesta exige una vista previa completa del texto enviado y posible coste. Chat no añade notas privadas, archivos ni pantalla. La clave se guarda cifrada con Android Keystore y se envía solo al proveedor elegido. No se prueba una conexión al guardar; usa «Probar conexión» para una petición mínima.")
@@ -113,18 +113,25 @@ internal fun TextApiPage(vm: SakuraViewModel) {
                     key = ""
                 }) { Text("Guardar clave") }
                 TextButton(enabled = !vm.busy && keyConfigured, onClick = { vm.features.saveCredential(config.key, ""); key = "" }) { Text("Borrar clave") }
-                OutlinedButton(enabled = !vm.busy && keyConfigured, onClick = vm.skills::prepareProbe) { Text("Probar conexión") }
+                OutlinedButton(enabled = !vm.busy && keyConfigured, onClick = { if(current.provider=="Gemini") vm.skills.testGemini() else vm.skills.prepareProbe() }) { Text("Probar conexión") }
             }
             Text("Guardar no conecta ni valida la clave. «Probar conexión» envía una petición mínima y puede consumir cuota.", fontSize = 11.sp)
         } else {
             Info("Modo local: no necesitas clave API. Descarga Qwen2.5 1.5B desde Modelos; se verifica, se copia al almacenamiento privado y se carga en CPU.")
             Button(enabled = !vm.busy, onClick = { vm.page = "Modelos" }) { Text("Abrir centro de modelos") }
         }
-        Button(enabled = !vm.busy, onClick = { vm.skills.save(config) }) { Text("Guardar selección sin conectar") }
-        Text("Selección guardada: ${current.provider} · ${current.model.ifBlank { "sin modelo" }}")
-        OutlinedButton(onClick = { vm.page = "Modelos" }) { Text("Modelos locales") }
-        OutlinedButton(onClick = { vm.page = "Chat" }) { Text("Volver al chat") }
-        if (vm.busy) TextButton(onClick = vm.skills::cancel) { Text("Cancelar petición de texto / búsqueda") }
+        EngineSelector(vm)
+        Info("Bajo: respuesta local de hasta192 tokens/45 s, una pareja de chat y cuatro notas; prioriza brevedad. Alto: hasta384 tokens/90 s, tres parejas y doce notas. No cambia pesos ni expone pensamiento interno. Gemini 3.1 Flash-Lite usa MINIMAL/HIGH con512/2048 tokens totales; en otros modelos no se inventa un control de pensamiento. Puede aumentar consumo y latencia.")
+        Button(enabled=!vm.busy,onClick={vm.skills.save(TextConfig(provider,model.trim(),endpoint.trim(),vm.skills.config.effort))}) { Text("Guardar selección sin conectar") }
+        Text("Selección guardada: ${current.provider} · ${current.model}")
+        if(current.provider=="Gemini") {
+            Button(enabled=!vm.busy && vm.internetAllowed,onClick=vm.skills::testGemini) { Text("Revisar prueba real de Gemini…") }
+            Text(vm.skills.connectionStatus)
+            Text("La APK no incluye tu clave. Guarda gemini_key en Privacidad y confirma esta prueba desde tu móvil.",style=MaterialTheme.typography.bodySmall)
+        }
+        OutlinedButton(onClick={vm.page="Privacidad"}) { Text("Configurar claves cifradas") }
+        OutlinedButton(onClick={vm.page="Chat"}) { Text("Volver al chat") }
+        if(vm.busy) TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición de texto / búsqueda") }
     }
 }
 

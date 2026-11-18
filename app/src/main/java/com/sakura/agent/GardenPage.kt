@@ -40,12 +40,11 @@ private val SakuraInk = Color(0xFFF7EFF8)
 
 @Composable
 internal fun SakuraHero(title: String, subtitle: String, compact: Boolean = false) {
-    val motion = rememberInfiniteTransition(label = "hero")
-    val drift by motion.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(16000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "drift"
-    )
+    val drift = if(mascotMotionActive()) {
+        val motion=rememberInfiniteTransition(label="hero")
+        val value by motion.animateFloat(0f,1f,infiniteRepeatable(tween(16000,easing=FastOutSlowInEasing),RepeatMode.Reverse),label="drift")
+        value
+    } else 0f
     Box(Modifier.fillMaxWidth().height(if (compact) 152.dp else 248.dp).clip(RoundedCornerShape(26.dp))) {
         Image(
             painterResource(R.drawable.sakura_garden),
@@ -72,6 +71,7 @@ internal fun SakuraHero(title: String, subtitle: String, compact: Boolean = fals
 
 @Composable
 private fun Petals(modifier: Modifier = Modifier) {
+    if(!mascotMotionActive()) return
     val motion = rememberInfiniteTransition(label = "petals")
     val progress by motion.animateFloat(
         initialValue = 0f, targetValue = 1f,
@@ -99,29 +99,8 @@ private fun Petals(modifier: Modifier = Modifier) {
 
 @Composable
 internal fun SakuraMascot(modifier: Modifier = Modifier, size: Dp = 72.dp, speaking: Boolean = false) {
-    val motion = rememberInfiniteTransition(label = "mascot")
-    val breath by motion.animateFloat(
-        initialValue = 1f, targetValue = 1.055f,
-        animationSpec = infiniteRepeatable(tween(if (speaking) 700 else 2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "breath"
-    )
-    val glow by motion.animateFloat(
-        initialValue = .25f, targetValue = .7f,
-        animationSpec = infiniteRepeatable(tween(if (speaking) 900 else 3200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "glow"
-    )
-    Box(modifier.size(size), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier.matchParentSize().graphicsLayer { scaleX = breath; scaleY = breath }
-                .background(Brush.radialGradient(listOf(SakuraPink.copy(alpha = glow * .38f), Color.Transparent)), CircleShape)
-        )
-        Image(
-            painterResource(R.drawable.sakura_avatar),
-            "Mascota Sakura",
-            Modifier.size(size * .84f).clip(CircleShape).graphicsLayer { scaleX = breath; scaleY = breath },
-            contentScale = ContentScale.Crop
-        )
-    }
+    Box(modifier) { AnimatedMascot(size,LocalMascotMotion.current,speaking,LocalMascotSpeaking.current) }
+
 }
 
 @Composable
@@ -140,7 +119,7 @@ internal fun GardenPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Un
                         Text(if (vm.autoSpeak) "La voz automática está activada. También puedes pedirle un saludo." else "Puedes pedirle un saludo o activar la lectura automática en el chat.", fontSize = 12.sp)
                         Row {
                             TextButton(onClick = vm::speakGreeting) { Text("Escuchar saludo") }
-                            TextButton(onClick = { vm.updateAutoSpeak(!vm.autoSpeak) }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
+                            TextButton(onClick = { if(vm.autoSpeak) vm.updateAutoSpeak(false) else confirm("Leer respuestas en voz alta con voz local, solo en primer plano. Personas cercanas pueden oírlas.") { vm.updateAutoSpeak(true) } }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
                         }
                     }
                 }

@@ -3,8 +3,10 @@ name: Build Sakura Agent APK
 on:
   push:
     branches: [ main, 'copilot/**', 'feature/**' ]
+    paths-ignore: [ 'apk/**' ]
   pull_request:
     branches: [ main ]
+    paths-ignore: [ 'apk/**' ]
   workflow_dispatch:
 
 permissions:

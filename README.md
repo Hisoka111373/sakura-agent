@@ -6,39 +6,36 @@ Agente Android nativo en Kotlin/Jetpack Compose. Conserva el diseño nocturno ro
 y se integró en `main` mediante el [PR #3](https://github.com/Hisoka111373/sakura-agent/pull/3).
 La 0.3 también pasó CI (run 43551453495) y se integró mediante PR #4. La 0.4 pasó
 CI run43553143121 y se integró por PR #5. La 0.5 pasó CI43638461195 y se integró
-por PR #7. Para 0.6 consulta su propio PR/CI; las pruebas en dispositivo siguen pendientes.
+por PR #7. La0.6 pasó CI43749469074 y se integró por PR #8. Para0.7 consulta su propio
+PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
 
-## Ampliación 0.7 — una APK ligera que descarga su modelo
+## Ampliación 0.7 — Gemini, voz kawaii y respuesta acotada
 
-- **Sin pesos dentro de la APK.** La APK sigue siendo pequeña. En el primer
-  inicio Sakura descarga **Qwen2.5 1.5B Instruct Q4_K_M** (1.117.320.736 bytes,
-  Apache 2.0) desde Hugging Face, comprueba tamaño y SHA-256, lo copia al
-  almacenamiento privado y lo carga automáticamente. También puedes cancelar,
-  reintentar o desactivar la descarga automática en Privacidad.
-- **Voz de Sakura:** lectura automática opcional de respuestas, botón de saludo
-  de voz en Jardín y lectura bajo demanda en cada mensaje. Sigue usando una voz
-  española instalada en Android; no hay voz clonada ni subida de audio.
-- **Mascota animada:** respiración, brillo, pétalos y parallax en Jardín y en el
-  chat. No son GIFs ni video: es animación Compose en el dispositivo.
-- **Modelos visibles:** la pestaña Modelos aparece junto a Chat e incluye el
-  modelo inicial, modelos instalados, catálogo filtrable, enlaces de licencia y
-  descargas con confirmación. El GGUF personalizado sigue en Descargas.
-- **Claves API claras:** campo directo en APIs con mostrar/ocultar, modelos
-  sugeridos editables, guardado cifrado, borrado y **Probar conexión** con una
-  petición mínima revisada. Las demás credenciales siguen en Privacidad con un
-  selector y el mismo campo oculto.
-- **Buscar desde el chat:** escribe «busca …», «búscame …», «encuentra …» o
-  «search …». Si hay clave Brave, pide confirmación y añade hasta 5 resultados
-  al chat. Sin clave Brave, pide confirmación y abre YouTube/navegador/Play Store.
-  Los resultados son contenido no confiable y no se abren ni descargan solos.
-- **Se conserva:** Jardín, mascota original, 93 skills, favoritos, memoria
-  cifrada, agente, planes, GitHub, mensajes, pantalla, descargas y privacidad.
-- **Requisitos:** Android 13+, ARM64, idealmente 8 GB de RAM y Wi-Fi para la
-  primera descarga. El modelo ocupa ~1,1 GB; el APK + copia privada puede añadir
-  ~2,2 GB. Tamaño ≠ RAM necesaria. Aún **no se ha probado en un teléfono**.
-- La APK 0.7 se publica solo en `apk/`, no como release. La descarga del modelo
-  se hace desde Hugging Face; no se envían archivos, chat, recuerdos ni claves.
+- Gemini `gemini-3.1-flash-lite` comprobado con petición real y con el cliente JVM
+  de Sakura: respondió «Sakura conectada». Clave NO incluida en GitHub/APK/ZIP;
+  se configura oculta/cifrada en Privacidad. Botón de prueba confirmada en APIs.
+- Selector **Local / En línea** visible en Chat/Agente y último proveedor online guardado.
+- Pensamiento **Bajo / Alto**: contexto/salida/límite temporal local acotados;
+  Gemini Flash-Lite MINIMAL/HIGH con512/2048 tokens totales. Sin pensamiento interno expuesto.
+- JNI muestra progreso/fragmentos, cancelación y deadline cooperativo45/90 s.
+  No es benchmark ni garantía de rapidez; prueba1.5B/Bajo si3B resulta lento.
+- Avatar offline con respiración/giro/pulso de voz; pausa en segundo plano y se puede
+  desactivar. Saludo, tono kawaii y lectura automática local opcional/confirmada.
+- Peticiones de Chat pueden prepararse para el Agente: apps ya instaladas, buscar y
+  escritura accesible en allowlist con revisión individual, no control universal.
+- APK verificada se publica en `apk/` tras CI; consulta allí fuente, hashes y firma.
+
+Ver [docs/FEATURES-0.7.md](docs/FEATURES-0.7.md) para configuración y límites reales.
+
+## Modelo inicial y búsqueda conservados
+
+Centro de Modelos con Qwen2.5 1.5B Q4_K_M (~1.1 GB), SHA-256 y licencia,
+catálogo filtrable e importación privada. **Descarga manual confirmada y con Internet
+autorizado**; no se cambia el permiso de red automáticamente. Modelo no incluido en APK.
+Buscar desde Chat conserva revisión Brave o destino externo. APIs conserva campo oculto
+para clave y sugerencias editables; salvo Gemini verificado, las sugerencias heredadas
+no garantizan disponibilidad: usa un ID vigente de tu proveedor.
 
 ## Ampliación 0.6 — integración del agente pendiente
 
@@ -135,11 +132,11 @@ y pruebas físicas; no prometemos video local rápido con 8 GB. Consulta
 
 ## Integración en GitHub
 
-0.2, 0.3, 0.4 y 0.5 ya integradas por PR #3/#4/#5/#7. 0.6 se integró desde
-`sakura-v0.6-integration` y 0.7 desde `feature/sakura-0.7-auto-model` en `main`,
-conservando el proyecto Android original. La APK 0.7 vive en `apk/`; no hay
-release 0.7. Consulta el CI de `main` para el estado actual de compilación y
-tests; las verificaciones estáticas no sustituyen pruebas en un teléfono.
+0.2 a0.6 ya integradas por PR #3/#4/#5/#7/#8. La ampliación actual se sube a
+`sakura-v0.7-companion`, base `f14435d620054c04668fa103a3e1788c998fd355`,
+mediante pull request, conservando el proyecto Android original. Consulta su PR/Actions
+para conocer el estado actual de integración y compilación; las verificaciones
+estáticas indicadas al final no sustituyen un build Android ni pruebas físicas.
 
 ## Funciones implementadas en el código
 
@@ -170,16 +167,14 @@ tests; las verificaciones estáticas no sustituyen pruebas en un teléfono.
 - Usa modelos de fuentes confiables. Archivos GGUF/APK no confiables pueden tener riesgos
   de parser; esta app no ofrece aislamiento de seguridad contra vulnerabilidades nativas.
 
-### Modelo inicial (descarga automática opcional)
+### Modelo inicial (descarga confirmada)
 
 El modelo inicial de 0.7 es
 [Qwen2.5-1.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF),
-archivo `qwen2.5-1.5b-instruct-q4_k_m.gguf`, Apache 2.0. Sakura lo descarga en el
-primer inicio si no hay otro modelo, comprueba tamaño/SHA-256 y lo carga. No se
+archivo `qwen2.5-1.5b-instruct-q4_k_m.gguf`, Apache 2.0. Sakura permite descargarlo desde Modelos, comprueba tamaño/SHA-256 y lo carga. No se
 redistribuyen pesos dentro del repositorio ni de la APK. Para 8 GB también puedes
 probar [Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
-desde el catálogo; revisa su licencia. La descarga automática se puede desactivar
-en Privacidad y el modelo se puede borrar desde Modelos.
+desde el catálogo; revisa su licencia. La descarga requiere confirmación y el modelo se puede borrar desde Modelos.
 
 ## Compilar desde tu computadora
 
@@ -220,11 +215,9 @@ Se eliminó la copia redundante en `github/workflows/`, que GitHub no ejecuta.
 
 ## Primer uso
 
-1. Instala la APK 0.7 y abre Sakura. En el primer inicio descarga el modelo inicial
-   (~1,1 GB), lo verifica y lo carga. Usa Wi-Fi; puedes cancelar desde Jardín, Chat
-   o Modelos y reintentar después. No hace falta importar nada para empezar.
-2. Privacidad → selecciona nivel, humor, voz automática y si quieres descarga/carga
-   automática del modelo. El interruptor de Internet sigue desactivado al iniciar.
+1. Instala la APK 0.7.1. Autoriza Internet y confirma la descarga inicial (~1.1 GB)
+   desde Modelos, o importa un GGUF. Se verifica y carga; puedes cancelar.
+2. Privacidad → nivel, humor, voz automática opcional y carga del modelo ya instalado.
 3. Memoria → guarda notas concretas. No se extraen recuerdos del chat automáticamente.
 4. Chat → escribe un mensaje corto, dicta o pide «busca …». Micrófono pide permiso;
    revisa el dictado antes de enviar. La búsqueda siempre pide confirmación.
@@ -266,13 +259,14 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 86 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla y agente: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- 106 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente y pensamiento: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:
   aprobado. No enlaza la biblioteca ni prueba instrucciones ARM64.
 - Scripts: `bash -n` y comprobación de parche: aprobados.
-- Build Android/ARM64 de 0.2/0.3/0.4/0.5 aprobado en Actions. Consulta CI del nuevo commit 0.6.
+- Build Android/ARM64 de0.2 a0.6 aprobado en Actions. Consulta CI del nuevo commit0.7.
+- Gemini real con cliente JVM de Sakura: respuesta recibida; no equivale a prueba móvil.
 - **Pendiente en dispositivo:** inferencia real, RAM pico/rendimiento, Keystore, voz,
   APK de prueba, apps, exportaciones, downloads completos y operaciones de GitHub,
   mensajería, fal.ai, Brave, APIs de texto y Accesibilidad. No se enviaron mensajes

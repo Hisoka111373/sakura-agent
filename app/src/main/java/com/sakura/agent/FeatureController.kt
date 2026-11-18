@@ -90,6 +90,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         require(NetworkPolicy.secret(value)) { "Valor inválido." }
         withContext(Dispatchers.IO) { store.write(key,value.ifBlank { null }) }
         configured = if (value.isEmpty()) configured - key else configured + key
+        if(key == "gemini_key") vm.skills.invalidateConnection()
         vm.notice("Configuración guardada localmente. No se ha probado ni conectado el servicio.")
     }
 

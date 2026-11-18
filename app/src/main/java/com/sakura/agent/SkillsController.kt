@@ -14,6 +14,8 @@ import org.json.JSONArray
 class SkillsController(private val vm: SakuraViewModel, private val context: Context, private val store: PrivateStore) {
     private val client=TextSearchClient()
     var config by mutableStateOf(TextConfig("Local","")); private set
+    var onlineConfig by mutableStateOf(TextConfig("Gemini","gemini-3.1-flash-lite")); private set
+    var connectionStatus by mutableStateOf("Aún no probado desde este teléfono."); private set
     var results by mutableStateOf(emptyList<SearchResult>()); private set
     var query by mutableStateOf("")
     var kind by mutableStateOf("YouTube")
@@ -31,24 +33,53 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
     }
     suspend fun initialize() {
         withContext(Dispatchers.IO) {
+            store.read("online_config")?.let { saved ->
+                try { val row=JSONObject(saved); val next=TextConfig(row.getString("provider"),row.getString("model"),row.getString("endpoint"),row.optString("effort","Bajo"))
+                    require(next.provider != "Local" && next.effort in ThinkingPolicy.levels); next.url(); onlineConfig=next
+                } catch(_: Exception) { }
+            }
             store.read("skill_favorites")?.let {
                 try { val names=JSONArray(it); favorites=(0 until minOf(names.length(),150)).map { i -> names.getString(i) }
                     .filter { name -> Skills.entries.any { skill -> skill.name==name } }.toSet() }
                 catch (_:Exception) { favorites=emptySet() }
             }
             store.read("text_config")?.let { saved ->
-                try { val row=JSONObject(saved); val next=TextConfig(row.getString("provider"),row.getString("model"),row.getString("endpoint"))
-                    if(next.provider!="Local") next.url(); config=next
+                try { val row=JSONObject(saved); val next=TextConfig(row.getString("provider"),row.getString("model"),row.getString("endpoint"),row.optString("effort","Bajo"))
+                    require(next.effort in ThinkingPolicy.levels)
+                    if(next.provider!="Local") { next.url(); onlineConfig=next }; config=next
                 } catch (_:Exception) { vm.notice("Configuración de texto inválida; se conserva modo local.") }
             }
         }
     }
     fun save(next: TextConfig) = vm.workFeature("Guardando proveedor, sin conectar…") {
         require(next.provider in TextProtocol.providers)
+        require(next.effort in ThinkingPolicy.levels)
         if(next.provider!="Local") next.url()
+        val online = if(next.provider != "Local") next else onlineConfig.copy(effort=next.effort)
         withContext(Dispatchers.IO) { store.write("text_config",JSONObject().put("provider",next.provider)
-            .put("model",next.model).put("endpoint",next.endpoint).toString()) }
-        config=next; vm.notice("Proveedor guardado cifrado. La clave se configura en APIs o Privacidad; aún no se ha probado.")
+            .put("model",next.model).put("endpoint",next.endpoint).put("effort",next.effort).toString())
+            store.write("online_config",JSONObject().put("provider",online.provider).put("model",online.model).put("endpoint",online.endpoint).put("effort",online.effort).toString())
+        }
+        config=next; onlineConfig=online; invalidateConnection(); vm.notice("Motor ${next.provider} · esfuerzo ${next.effort} guardado. No se envió ninguna petición. Clave en Privacidad.")
+    }
+    fun selectEngine(local: Boolean) { if(!vm.busy) save(if(local) TextConfig("Local","",effort=config.effort) else onlineConfig.copy(effort=config.effort)) }
+    fun effort(level: String) { if(!vm.busy && level in ThinkingPolicy.levels) save(config.copy(effort=level)) }
+    fun invalidateConnection() { connectionStatus="Configuración cambiada: prueba pendiente desde este teléfono." }
+    fun testGemini() {
+        if(vm.busy || config.provider != "Gemini") return
+        try {
+            val chosen=config
+            val history=listOf(ChatMessage("Prueba de conexión de Sakura: responde solo Sakura conectada.",false))
+            val payload=TextProtocol.payload(chosen,history)
+            val ready=vm.features.prepare("COMPROBAR GEMINI CON UNA PETICIÓN REAL\nModelo: ${chosen.model}\nEndpoint: ${chosen.url()}\nNo usa chat, recuerdos, archivos ni pantalla. Puede consumir cuota/dinero; límite ${ThinkingPolicy.cloudTokens(chosen)} tokens no es un tope monetario. No se reintenta.\nSolicitud completa sin clave:\n${payload.toString(2)}") {
+                check(config==chosen) { "La configuración cambió; vuelve a preparar." }
+                client.reset(); val start=android.os.SystemClock.elapsedRealtime()
+                val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed); client.generate(chosen,store.read("gemini_key").orEmpty(),history) }
+                check(vm.internetAllowed) { "Red desautorizada; prueba descartada." }
+                "Gemini respondió realmente en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s:\n${answer.take(500)}\nModelo: ${chosen.model}. No verifica velocidad futura ni todas las herramientas."
+            }
+            if(ready) vm.features.observePending("gemini-check") { result -> connectionStatus=result.getOrElse { "Prueba NO confirmada: ${it.message}" } }
+        } catch(e: Exception) { vm.notice(e.message ?: "Configuración Gemini inválida.") }
     }
     fun isSearchRequest(text: String): Boolean = Skills.isSearchRequest(text)
     fun prepareChatSearch() {
@@ -96,7 +127,11 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
             val chosen = config
             require(chosen.provider != "Local") { "Elige un proveedor de texto en la nube." }
             require(store.read(chosen.key).orEmpty().isNotBlank()) { "Guarda primero la clave de ${chosen.provider}." }
-            vm.features.prepare("PROBAR CONEXIÓN DE TEXTO · ${chosen.provider}\nEndpoint: ${chosen.url()}\nModelo: ${chosen.model}\nSe envía una petición mínima («Responde solo: OK») con tu clave cifrada. Puede consumir cuota o dinero. No se envían chat, recuerdos ni archivos. Sin reintento automático.", true) {
+            val history=listOf(ChatMessage("Responde solo: OK", false))
+            val instruction="Responde solo: OK"
+            val payload=TextProtocol.payload(chosen,history,instruction)
+            vm.features.prepare("PROBAR CONEXIÓN DE TEXTO · ${chosen.provider}\nEndpoint: ${chosen.url()}\nModelo: ${chosen.model}\nPetición completa sin clave:\n${payload.toString(2)}\nPuede consumir cuota o dinero. Sin chat/recuerdos/archivos ni reintento.", true) {
+                check(config==chosen) { "Configuración cambiada: revisa de nuevo." }
                 client.reset()
                 val answer = withContext(Dispatchers.IO) {
                     check(vm.internetAllowed) { "Red desautorizada." }
@@ -121,10 +156,10 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         try {
             val chosen=config; val original=vm.draft; val previous=vm.messages
             val manual=manualSkill; val skill=markSelected(original)
-            val system=TextProtocol.system+Skills.guidance(skill)
-            val history=previous.takeLast(6)+ChatMessage(original.trim(),false)
+            val system=TextProtocol.system+Skills.guidance(skill)+ThinkingPolicy.guidance(chosen.effort)+(if(vm.kawaii) ThinkingPolicy.kawaii else "")
+            val history=previous.takeLast(ThinkingPolicy.chatHistory(chosen.effort))+ChatMessage(original.trim(),false)
             val payload=TextProtocol.payload(chosen,history,system)
-            vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model}\n\nEnvía hasta tres parejas anteriores y tu borrador. NO recuerdos privados, archivos ni pantalla. Puede tener coste; 768 tokens máximos de salida NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
+            vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model} · esfuerzo ${chosen.effort}\n\nEnvía hasta ${ThinkingPolicy.chatHistory(chosen.effort)/2} parejas anteriores y tu borrador. NO recuerdos privados, archivos ni pantalla. Puede tener coste; ${ThinkingPolicy.cloudTokens(chosen)} tokens máximos de salida (incluye pensamiento en Gemini) NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
                 check(vm.draft==original && vm.messages==previous && config==chosen && manualSkill==manual) { "El chat/configuración/skill cambió: revisa una nueva solicitud." }
                 client.reset()
                 val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.generate(chosen,store.read(chosen.key)?:"",history,system) }

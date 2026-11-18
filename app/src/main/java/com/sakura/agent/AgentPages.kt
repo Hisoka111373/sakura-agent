@@ -17,6 +17,7 @@ internal fun AgentPage(vm: SakuraViewModel) {
         item { SakuraHero("Agente por pasos","Sakura propone. Tú revisas y decides.",true) }
         item { Info("Hasta 10 propuestas por sesión. Cada herramienta y cada petición de nube se revisa y confirma por separado. Nunca continúa sola. No ejecuta shell, instala APK, mezcla PR ni automatiza pagos. Datos y registro solo en RAM; no hay historial persistente del agente.") }
         item { Text("Proveedor: ${vm.skills.config.provider} · propuesta ${agent.steps}/${AgentTools.MAX_STEPS}") }
+        item { Column { EngineSelector(vm) } }
         item { Field("Objetivo (sin claves ni secretos)",agent.goal,{agent.goal=it.take(1500)},!vm.busy && !agent.active && !agent.awaiting,false) }
         item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Button(enabled=!vm.busy && !agent.active && !agent.awaiting && agent.goal.isNotBlank(),onClick=agent::start) { Text("Iniciar / nueva sesión") }
