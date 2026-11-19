@@ -19,4 +19,45 @@ class ThinkingPolicyTest {
     @Test fun kawaiiKeepsSafetyAndAdultTone() { assertTrue(ThinkingPolicy.kawaii.contains("adulta")); assertTrue(ThinkingPolicy.kawaii.contains("No infantilices")); assertTrue(ThinkingPolicy.kawaii.contains("precisión")) }
     @Test fun oldCloudDefaultsCompatible() { assertEquals(768,ThinkingPolicy.cloudTokens(TextConfig("OpenAI","model"))); assertEquals("Bajo",TextConfig("Local","").effort) }
     @Test fun agentSystemStillFitsCloudGuard() { ThinkingPolicy.levels.forEach { assertTrue((AgentTools.prompt+ThinkingPolicy.guidance(it)).length<=2500) } }
+    @Test fun localPromptKeepsGreetingAndMarksTrimmedSystem() {
+        val system = "Eres Sakura. ".repeat(1000) + ThinkingPolicy.guidance("Bajo")
+        val (fitted, history) = ThinkingPolicy.fitLocalPrompt("Bajo", system, listOf(ChatMessage("hola", false)))
+        assertEquals("hola", history.single().text)
+        assertTrue(fitted.startsWith("Eres Sakura."))
+        assertTrue(fitted.contains(ThinkingPolicy.localPromptTrimmed))
+        assertTrue(fitted.length <= ThinkingPolicy.localPromptChars("Bajo"))
+    }
+    @Test fun localPromptDropsOldestHistoryFirstDeterministically() {
+        val history = (1..8).map { ChatMessage("m$it:" + "x".repeat(1500), it % 2 == 0) }
+        val first = ThinkingPolicy.fitLocalPrompt("Bajo", "S", history)
+        assertEquals(first, ThinkingPolicy.fitLocalPrompt("Bajo", "S", history))
+        assertFalse(first.second.any { it.text.contains("m6:") })
+        assertTrue(first.second.last().text.contains("m8:"))
+        assertTrue(first.second.size <= ThinkingPolicy.chatHistory("Bajo") + 1)
+    }
+    @Test fun localPromptNeverExceedsEstimatedContext() {
+        val notes = (1..20).map { Memory("$it", "Proyecto", "nota".repeat(100)) }
+        val system = AgentPolicy.systemPrompt("Principiante", true, ThinkingPolicy.localMemories(notes, "Alto")) +
+            ThinkingPolicy.guidance("Alto") + ThinkingPolicy.kawaii
+        val history = (1..12).map { ChatMessage("y".repeat(4000), it % 2 == 0) } + ChatMessage("hola", false)
+        val (fittedSystem, fittedHistory) = ThinkingPolicy.fitLocalPrompt("Alto", system, history)
+        val totalChars = fittedSystem.length + fittedHistory.sumOf { it.text.length }
+        assertTrue(totalChars <= ThinkingPolicy.localPromptChars("Alto"))
+        assertTrue(totalChars / 3 + 64 + ThinkingPolicy.localTokens("Alto") < ThinkingPolicy.localContextTokens)
+        assertEquals("hola", fittedHistory.last().text)
+    }
+    @Test fun tinyHistoryRoomDoesNotThrow() { val (_, h) = ThinkingPolicy.fitLocalPrompt("Bajo", "s".repeat(600), listOf(ChatMessage("old".repeat(100),true),ChatMessage("x".repeat(2715),false))); assertEquals(1,h.size) }
+    @Test fun localMemoriesAreCappedWithoutChangingTheirOrder() {
+        val notes = (1..20).map { Memory("$it", "Proyecto", "n".repeat(500)) }
+        val local = ThinkingPolicy.localMemories(notes, "Bajo")
+        assertEquals(ThinkingPolicy.memories("Bajo"), local.size)
+        assertTrue(local.all { it.text.length <= 120 })
+        assertEquals(notes.last().id, local.last().id)
+    }
+    @Test fun continueNeedsAnAnswerAndAnEmptyDraft() {
+        val answer = listOf(ChatMessage("Respuesta", true))
+        assertTrue(CompanionPolicy.canContinue(answer, ""))
+        assertFalse(CompanionPolicy.canContinue(answer, "borrador"))
+        assertFalse(CompanionPolicy.canContinue(listOf(ChatMessage("Pregunta", false)), ""))
+    }
 }

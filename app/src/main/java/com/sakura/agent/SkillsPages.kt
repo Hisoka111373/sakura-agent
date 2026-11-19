@@ -1,8 +1,10 @@
 package com.sakura.agent
 
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -139,10 +142,10 @@ internal fun TextApiPage(vm: SakuraViewModel) {
 internal fun SearchPage(vm: SakuraViewModel) {
     val controller=vm.skills
     LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-        item { Info("Escribe, por ejemplo, ‘busca una canción de Maná’. Preparar interpreta el destino sin enviar nada; tú revisas y abres YouTube, navegador o Play Store. Para resultados dentro de Sakura usa Brave con tu clave. Buscar un video no permite extraerlo ni descargarlo de YouTube.") }
+        item { Info("Escribe, por ejemplo, ‘busca una canción de Maná’. Preparar interpreta el destino sin enviar nada; tú revisas y abres YouTube, Google, navegador o Play Store. Google abre el navegador externo sin extraer resultados. Para resultados dentro de Sakura usa Brave con tu clave. Buscar un video no permite extraerlo ni descargarlo de YouTube.") }
         item { Field("Petición o consulta",controller.query,{controller.query=it.take(500)},!vm.busy) }
         item { OutlinedButton(enabled=!vm.busy,onClick={controller.route(controller.query)}) { Text("Preparar destino de la petición") } }
-        item { Row { listOf("Web","YouTube","Juegos").forEach { kind ->
+        item { Row { listOf("Web","YouTube","Google","Juegos").forEach { kind ->
             FilterChip(controller.kind==kind,{controller.kind=kind},label={Text(kind)},modifier=Modifier.padding(end=5.dp))
         } } }
         item { Button(enabled=!vm.busy && controller.query.isNotBlank(),onClick=controller::prepareExternalSearch) { Text("Revisar búsqueda externa…") } }
@@ -167,6 +170,8 @@ internal fun ScreenPage(vm: SakuraViewModel) {
     val context=LocalContext.current
     var app by remember { mutableStateOf("YouTube") }
     var query by remember { mutableStateOf("") }
+    var typeText by remember { mutableStateOf("") }
+    var screenReport by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         Info("Control de pantalla opcional mediante Accesibilidad. Puede ver controles accesibles de la app autorizada y escribir/buscar. No hace capturas ni transmite pantalla; no lee en reposo. Sesión máxima 3 minutos, botón DETENER visible y confirmación por acción. Sin mensajes, pagos, contraseñas, permisos, instalaciones ni gestos arbitrarios. Solo apps de la lista; otras APK se pueden abrir desde Herramientas, no automatizar.")
         Info("Android debe permitirte activar el servicio manualmente. Una instalación externa puede requerir que tú habilites ajustes restringidos según tu versión; Sakura no los cambia. Desactiva el servicio en Ajustes al terminar. Si no reconoce un control, usa la app manualmente; no garantiza compatibilidad con todas las versiones.")
@@ -192,7 +197,53 @@ internal fun ScreenPage(vm: SakuraViewModel) {
                 "Sesión iniciada. Usa el panel de Sakura: Ver controles → elegir → revisar → confirmar. No se ha escrito ni buscado todavía."
             }
         }) { Text("Revisar iniciar sesión de pantalla…") }
+        Button(enabled=!vm.busy,onClick={
+            vm.features.prepare("LEER TEXTO VISIBLE DE LA PANTALLA AUTORIZADA\nRequiere sesión activa en la app autorizada. Hasta 200 nodos, profundidad 12 y 4000 caracteres; excluye contraseñas, campos sensibles y etiquetas bloqueadas. NUNCA se envía al modelo ni a la red automáticamente; se muestra en el panel y aquí.",false) {
+                val service=SakuraAccessibilityService.connected ?: error("Activa el servicio y una sesión manualmente.")
+                val visible=service.readVisibleText()
+                screenReport=visible.ifBlank { "No se encontró texto visible permitido." }
+                "Texto visible leído y mostrado solo localmente (${visible.length} caracteres)."
+            }
+        }) { Text("Leer texto visible de esta pantalla") }
+        Field("Texto corto para escribir (máximo 500 caracteres)",typeText,{typeText=it.take(500)},!vm.busy)
+        Button(enabled=!vm.busy && typeText.isNotBlank(),onClick={
+            val value=typeText
+            vm.features.prepare("ESCRIBIR TEXTO EN LA PANTALLA AUTORIZADA\nTexto exacto:\n$value\nAl confirmar solo se prepara en el panel: debes elegir un campo editable y pulsar «Confirmar escribir texto preparado». Sin Enter/IME automático. Requiere sesión activa en la app autorizada.",false) {
+                val service=SakuraAccessibilityService.connected ?: error("Activa el servicio y una sesión manualmente.")
+                service.prepareTypeText(value)
+            }
+        }) { Text("Revisar escribir texto en pantalla…") }
+        if(screenReport.isNotBlank()) SelectionContainer { Text(screenReport,fontFamily=FontFamily.Monospace,fontSize=12.sp) }
         OutlinedButton(onClick={SakuraAccessibilityService.connected?.stopSession(); vm.notice("Sesión detenida; el permiso de Accesibilidad se desactiva en Ajustes.")}) { Text("Detener cualquier sesión") }
         TextButton(onClick={vm.page="Buscar"}) { Text("Alternativa: buscar por enlace sin Accesibilidad") }
+    }
+}
+
+@Composable
+internal fun FilesPage(vm: SakuraViewModel, folder: String?, chooseFolder: () -> Unit) {
+    val context=LocalContext.current
+    var name by remember { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Info("Carpeta elegida con el selector de documentos de Android (SAF). Sakura no pide permiso de almacenamiento amplio y solo ve esa carpeta. Cada listado o lectura exige revisar una vista previa y confirmar; el contenido se muestra aquí y no se envía a ningún servicio.")
+        Button(enabled=!vm.busy,onClick=chooseFolder) { Text(if(folder==null) "Elegir carpeta" else "Cambiar carpeta") }
+        Text("Carpeta: ${folder ?: "sin elegir"}",color=MaterialTheme.colorScheme.secondary,fontSize=12.sp)
+        Button(enabled=!vm.busy && folder!=null,onClick={
+            folder?.let { raw ->
+                vm.features.prepare("LISTAR ARCHIVOS DE LA CARPETA ELEGIDA\nCarpeta SAF: $raw\nHasta 100 entradas (nombre y tamaño) de esa carpeta. Sin permisos amplios ni acceso a otras ubicaciones. No se envía nada a la red ni al modelo; revisa la siguiente petición antes de compartir algo.",false) {
+                    withContext(Dispatchers.IO) { PhoneFiles.list(context,Uri.parse(raw)) }
+                        .joinToString("\n") { "${it.name} · ${it.size} bytes" }.ifBlank { "La carpeta no muestra archivos." }
+                }
+            }
+        }) { Text("Listar archivos de la carpeta") }
+        Field("Nombre exacto del archivo a leer",name,{name=it.take(200)},!vm.busy)
+        Button(enabled=!vm.busy && folder!=null && PhoneFiles.validName(name),onClick={
+            folder?.let { raw ->
+                val target=name
+                vm.features.prepare("LEER ARCHIVO DE LA CARPETA ELEGIDA\nCarpeta SAF: $raw\nNombre exacto: $target\nHasta 64 KiB, UTF-8 estricto; se rechazan binarios y bytes nulos. Solo se muestra localmente; no se envía a la red ni al modelo sin que revises la siguiente petición.",false) {
+                    withContext(Dispatchers.IO) { PhoneFiles.readText(context,Uri.parse(raw),target) }
+                }
+            }
+        }) { Text("Revisar lectura de archivo…") }
+        if(vm.features.report.isNotBlank()) SelectionContainer { Text(vm.features.report,fontFamily=FontFamily.Monospace,fontSize=12.sp) }
     }
 }

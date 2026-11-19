@@ -1,4 +1,4 @@
-# Sakura 0.8.1 — reparación local y chat limpio
+# Sakura 0.9.1 — reparación local y chat limpio
 
 ## Error reportado
 «Tiempo de contexto agotado» al escribir hola: timeout durante prefill, no prueba de que el modelo esté razonando mucho. Cambios: -O3 en todos los targets nativos (incluidos llama/ggml) con verificación de flags efectivos en CI; prompt local compacto (saludo <240 caracteres, sin historial ni notas para saludos exactos), instrucciones de skill acotadas y contexto local pequeño. Bajo: 96 tokens de salida, saludo32; Alto256. Sin respuestas simuladas ni fallback nube.
@@ -12,3 +12,5 @@ Chat: Local/En línea, mascota pequeña, conversación, dictado/escribir/enviar,
 Mascota: salto con squash/stretch y pequeño movimiento lateral; arte intacto, no Live2D/lip-sync. Solo avatar activo animado en chat; miniaturas históricas estáticas. Pausa fuera de primer plano y al desactivar movimiento.
 
 Prueba física pendiente: no afirmar que está solucionado en el móvil hasta repetir hola, explica variables y una skill de traducción con un GGUF cargado, registrar tiempo/porcentaje, cancelar y volver a enviar. Verificar conversación visible con teclado y mensaje de error accesible desde Opciones.
+
+Integrada sobre 0.9.0: conserva controles supervisados de teléfono, carpeta autorizada, catálogo Q3 y sus pruebas. No restaura la APK 8.0 retirada.

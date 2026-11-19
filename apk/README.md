@@ -1,3 +1,28 @@
+# Sakura 0.9.0 — APK nueva
+
+Archivo: `SakuraAgent-0.9.0-arm64-debug.apk` (**0.9.0**, versionCode `10`, paquete `com.sakura.agent`). Android 13+ ARM64, build debug, no release de tienda.
+
+- Fuente: `63e4b58` (rama `feature/genki-phone-controls`).
+- CI: https://github.com/Hisoka111373/sakura-agent/actions/runs/44228599518 — éxito (`testDebugUnitTest` y `assembleDebug` en verde).
+- 132 tests JVM portátiles pasados localmente antes del push; Gradle Unit tests y build ARM64: aprobados en CI.
+- Tamaño: `73600089` bytes.
+- SHA-256: `fa6d3a72a18760dabe02d5198ff1659e1124b7de132393a0e099d3890fb17c59`.
+- Verificación ZIP: `AndroidManifest.xml`, `classes.dex` y `lib/arm64-v8a/libsakura_llm.so` presentes, 152 entradas. La firma es APK v2 (no aparece como JAR v1 con `keytool`).
+
+Incluye el arreglo del modo local que se quedaba pensando: presupuesto determinista del prompt, mensaje nuevo preservado, limpieza del estado `Pensando` en éxito/error/timeout/cancelación y deadline nativo antes de tokenizar. Mantiene selector Local/En línea y `Continuar` con borrador vacío.
+
+Añade GGUF pequeños verificados (0.5B Q4_K_M y 1.5B Q3_K_M); imagen y vídeo se muestran como descarga externa porque Sakura no tiene motor local para ellos.
+
+Añade controles del teléfono **siempre con revisión previa**: Google en navegador, lectura de pantalla vía Accesibilidad (sin texto sensible), escritura confirmada en campos seguros, archivos de carpeta SAF y apertura/instalación de APK con diálogo y permiso `REQUEST_INSTALL_PACKAGES`. No hay bucles autónomos ni envío de pantalla a la nube.
+
+**No probado físicamente**: arranque en móvil, rendimiento del GGUF, JNI, voz, Accesibilidad, SAF con proveedores de terceros y pantalla de instalación de Android. La firma debug puede diferir de versiones anteriores; conserva tus datos antes de actualizar.
+
+Las APK anteriores se conservan intactas.
+
+---
+
+## Documentación histórica (no describe la build nueva)
+
 # Sakura 8.0 — APK nueva
 
 Archivo: `SakuraAgent-8.0-arm64-debug.apk` (nombre solicitado: 8.0). **Versión interna Android: 0.8.0, versionCode 9**, paquete `com.sakura.agent`. Android 13+ ARM64, build debug, no release de tienda.

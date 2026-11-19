@@ -25,6 +25,7 @@ class SakuraAccessibilityService : AccessibilityService() {
     private var target=""
     private var expires=0L
     private var initialQuery=""
+    private var writingText=""
     private val timeout=Runnable { stopSession() }
     private data class Candidate(val path: List<Int>, val label: String, val window: Int, val bounds: String, val editable: Boolean, val value: String)
 
@@ -52,7 +53,7 @@ class SakuraAccessibilityService : AccessibilityService() {
         } catch(e:Exception) { stopSession(); throw e }
     }
     fun stopSession() {
-        handler.removeCallbacks(timeout); target=""; expires=0L; initialQuery=""
+        handler.removeCallbacks(timeout); target=""; expires=0L; initialQuery=""; writingText=""
         overlay?.let { try { getSystemService(WindowManager::class.java).removeView(it) } catch(_:Exception) {} }
         overlay=null; content=null
     }
@@ -61,7 +62,40 @@ class SakuraAccessibilityService : AccessibilityService() {
     private fun reset(message: String) {
         content?.removeAllViews(); text(message)
     }
-    private fun menu(message: String) { reset(message); button("Ver controles de búsqueda",::scan) }
+    private fun menu(message: String) {
+        reset(message)
+        button("Ver controles de búsqueda",::scan)
+        button("Leer texto visible de esta pantalla") { readVisibleText() }
+    }
+    fun readVisibleText(): String {
+        val root=root()
+        val parts=mutableListOf<String>(); var visited=0
+        fun visit(node: AccessibilityNodeInfo, path: List<Int>) {
+            if(++visited>200 || path.size>12 || node.isPassword || !node.isVisibleToUser) return
+            ScreenPolicy.visibleText(label(node),node.text?.toString(),node.isPassword,node.isEditable)?.let(parts::add)
+            for(i in 0 until minOf(node.childCount,50)) node.getChild(i)?.let { visit(it,path+i) }
+        }
+        visit(root,emptyList())
+        val result=ScreenPolicy.visibleTextSummary(parts)
+        showVisibleText(result)
+        return result
+    }
+    private fun showVisibleText(value: String) {
+        reset("Texto visible de $target. Solo se muestra aquí: no se envía al modelo ni a la red.")
+        content?.addView(TextView(this).apply {
+            text=value.ifBlank { "No se encontró texto visible permitido." }
+            setTextIsSelectable(true); setTextColor(0xFF73E6E0.toInt()); textSize=13f
+        })
+        button("Volver al menú") { menu("Sesión de búsqueda: $target · controles y texto visible.") }
+    }
+    fun prepareTypeText(value: String): String {
+        require(NetworkPolicy.text(value,500)) { "Texto requerido, máximo 500 caracteres." }
+        root()
+        writingText=value
+        scan()
+        text("Texto preparado para escribir (revísalo):\n$value\nElige un campo editable y pulsa «Confirmar escribir texto preparado». No se ha escrito nada.")
+        return "Texto preparado en el panel; elige un campo editable y confirma allí. No se ha escrito nada."
+    }
     private fun root(): AccessibilityNodeInfo {
         check(target.isNotBlank() && SystemClock.elapsedRealtime()<expires) { "Sesión vencida." }
         val root=rootInActiveWindow ?: error("No hay pantalla accesible.")
@@ -97,6 +131,10 @@ class SakuraAccessibilityService : AccessibilityService() {
             text("Escribir reemplaza el campo por: $initialQuery\nBuscar envía el texto actual: ${candidate.value}")
             button("Confirmar escribir consulta") { execute(candidate,AccessibilityNodeInfo.ACTION_SET_TEXT,initialQuery) }
             button("Confirmar buscar con texto actual") { execute(candidate,AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id,null) }
+            if(writingText.isNotBlank()) {
+                text("TEXTO PREPARADO PARA ESCRIBIR (exacto):\n$writingText")
+                button("Confirmar escribir texto preparado") { execute(candidate,AccessibilityNodeInfo.ACTION_SET_TEXT,writingText) }
+            }
         } else button("Confirmar pulsar control") { execute(candidate,AccessibilityNodeInfo.ACTION_CLICK,null) }
         button("Cancelar / volver",::scan)
     }

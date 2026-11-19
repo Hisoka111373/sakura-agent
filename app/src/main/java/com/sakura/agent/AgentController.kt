@@ -137,11 +137,55 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
                     service.startSession(arg("package"),arg("query")); vm.page = "Pantalla"
                     "Sesión iniciada; ve a Pantalla y revisa cada acción. Ninguna búsqueda/reproducción confirmada."
                 }
+                "google_search" -> vm.features.prepare("ABRIR BÚSQUEDA DE GOOGLE\nConsulta exacta: ${arg("query")}\nURL exacta: ${Skills.searchUrl("Google",arg("query"))}\nAbre navegador externo, sin extraer resultados ni enviarlos al modelo. La app externa usa su propia red y cuenta; Sakura no verifica los resultados.",false) {
+                    val url = Skills.searchUrl("Google",arg("query"))
+                    withContext(Dispatchers.Main) {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,android.net.Uri.parse(url))
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    "Android aceptó abrir la URL; resultados NO extraídos ni enviados al modelo."
+                }
+                "screen_read" -> vm.features.prepare("LEER TEXTO VISIBLE DE LA PANTALLA AUTORIZADA\nRequiere sesión activa y la app autorizada. Hasta 200 nodos, profundidad 12 y 4000 caracteres; excluye contraseñas, campos sensibles y etiquetas bloqueadas. NUNCA se envía al modelo ni a la red automáticamente. Se muestra en el panel y en Agente; revisa antes de compartir.",false) {
+                    val service = SakuraAccessibilityService.connected ?: error("Activa el servicio y una sesión manualmente en Pantalla.")
+                    val visible = service.readVisibleText()
+                    if(visible.isBlank()) "No se encontró texto visible permitido en la app autorizada." else "Texto visible mostrado solo localmente:\n$visible"
+                }
+                "screen_type" -> vm.features.prepare("ESCRIBIR TEXTO EN LA PANTALLA AUTORIZADA\nTexto exacto a revisar:\n${arg("text")}\nRequiere sesión activa en la app autorizada. Al confirmar aquí solo se prepara el texto: el panel muestra los campos editables y exige pulsar «Confirmar escribir texto preparado». Sin Enter/IME automático; máximo 500 caracteres.",false) {
+                    val service = SakuraAccessibilityService.connected ?: error("Activa el servicio y una sesión manualmente en Pantalla.")
+                    service.prepareTypeText(arg("text"))
+                }
+                "file_list" -> vm.features.prepare("LISTAR ARCHIVOS DE LA CARPETA ELEGIDA (SAF)\nCarpeta: ${store.read(PHONE_FOLDER_KEY) ?: "sin elegir"}\nHasta 100 entradas (nombre y tamaño) de esa carpeta, sin permisos amplios de almacenamiento. No se abre ni se envía contenido a ningún servicio. Los resultados se muestran localmente y solo se reenvían si revisas la siguiente petición.",false) {
+                    val raw = store.read(PHONE_FOLDER_KEY) ?: error("Elige una carpeta en la página Archivos antes de usar esta herramienta.")
+                    withContext(Dispatchers.IO) { PhoneFiles.list(context,android.net.Uri.parse(raw)) }
+                        .joinToString("\n") { "${it.name} · ${it.size} bytes" }
+                        .ifBlank { "La carpeta elegida no muestra archivos." }
+                }
+                "file_read" -> {
+                    val name = arg("name")
+                    require(PhoneFiles.validName(name)) { "Nombre de archivo inválido." }
+                    vm.features.prepare("LEER ARCHIVO DE LA CARPETA ELEGIDA (SAF)\nCarpeta: ${store.read(PHONE_FOLDER_KEY) ?: "sin elegir"}\nNombre exacto: $name\nHasta 64 KiB, UTF-8 estricto; se rechazan binarios y bytes nulos. Solo se muestra localmente; no se envía a la red ni al modelo sin que revises la siguiente petición.",false) {
+                        val raw = store.read(PHONE_FOLDER_KEY) ?: error("Elige una carpeta en la página Archivos antes de usar esta herramienta.")
+                        withContext(Dispatchers.IO) { PhoneFiles.readText(context,android.net.Uri.parse(raw),name) }
+                    }
+                }
+                "apk_open_selected" -> {
+                    val selected = vm.selectedApkUri ?: error("No hay APK seleccionada. Abre Herramientas y analiza una APK primero.")
+                    vm.features.prepare("ABRIR APK SELECCIONADA\nURI exacta: $selected\nAndroid pedirá su propia confirmación para ver/instalar. Sakura NO verifica seguridad, firma ni compatibilidad; NO es instalación silenciosa.",false) {
+                        withContext(Dispatchers.Main) {
+                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                .setDataAndType(selected,"application/vnd.android.package-archive")
+                                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                        "Android aceptó abrir la APK; Sakura no ha instalado ni verificado nada."
+                    }
+                }
             }
             val attached = vm.features.observePending("agent") { result ->
                 if(id == revision) {
                     val observation = result.getOrElse { "Resultado NO confirmado: ${it.message}. Revisa el servicio antes de repetir." }
-                    observations = observations + "${call.name}: ${observation.take(1000)}"
+                    val shared = if(call.name == "screen_read" && result.isSuccess)
+                        "Texto visible revisado solo en pantalla; NO incluido en el contexto del modelo." else observation.take(1000)
+                    observations = observations + "${call.name}: $shared"
                     events = events + "${call.name}: ${observation.take(12000)}"
                     proposal = ""; awaiting = false
                     if(steps >= AgentTools.MAX_STEPS) active = false
