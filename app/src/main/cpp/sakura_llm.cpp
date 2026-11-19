@@ -105,7 +105,7 @@ std::vector<llama_token> tokenize(const std::string &text) {
     return result;
 }
 
-bool decode(const std::vector<llama_token> &tokens) {
+bool decode(const std::vector<llama_token> &tokens, JNIEnv *env, jobject callback, jmethodID method) {
     auto batch = llama_batch_init(batchSize, 0, 1);
     BatchGuard batchGuard{batch};
     bool ok = true;
@@ -120,6 +120,8 @@ bool decode(const std::vector<llama_token> &tokens) {
             batch.logits[i] = index == tokens.size() - 1;
         }
         if (llama_decode(ctx, batch) != 0) { ok = false; break; }
+        const int percent = static_cast<int>((offset + count) * 100 / tokens.size());
+        progress(env, callback, method, -(percent + 1), "");
     }
     return ok;
 }
@@ -179,7 +181,9 @@ Java_com_sakura_agent_NativeLlama_nativeGenerate(JNIEnv *env, jobject, jbyteArra
         llama_memory_clear(llama_get_memory(ctx), true);
         llama_sampler_reset(sampler);
         progress(env,callback,method,0,"");
-        if (!decode(tokens)) throw std::runtime_error(timedOut() ? "Tiempo de contexto agotado. Acorta mensaje/notas o usa GGUF 1.5B y modo Bajo." : "Prompt processing failed or was cancelled.");
+        if (!decode(tokens, env, callback, method)) throw std::runtime_error(timedOut() ? "Tiempo de contexto agotado. Prueba Qwen 0.5B en Modelos y modo Bajo; no se genero una respuesta." : "Contexto cancelado o fallo de procesamiento.");
+        // Prefill must not consume the answer's entire cooperative time budget.
+        deadlineNanos.store(nowNanos() + timeoutMs * 1000000);
         auto batch = llama_batch_init(1, 0, 1);
         BatchGuard batchGuard{batch};
         std::string output;

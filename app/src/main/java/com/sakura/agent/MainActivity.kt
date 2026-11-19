@@ -105,6 +105,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
         LocalCompanionEvent provides vm.companionEvent, LocalCompanionSequence provides vm.companionSequence) {
     Surface(Modifier.fillMaxSize(), color = Night) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(18.dp)) {
+            if(vm.page != "Chat") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(Modifier.size(44.dp), shape = CircleShape, color = Pink.copy(alpha = 0.18f)) {
                     AnimatedMascot(44.dp,vm.mascotMotion,vm.generating,voice.speaking)
@@ -120,8 +121,9 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                     FilterChip(selected = vm.page == page, onClick = { vm.page = page }, label = { Text(page) })
                 }
             }
+            }
             if (vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(vm.status, color = Aqua, fontSize = 12.sp, modifier = Modifier.padding(vertical = 7.dp))
+            if(vm.page != "Chat" || vm.busy || vm.status.startsWith("Error:")) Text(vm.status, color = Aqua, fontSize = 12.sp, maxLines=2, modifier = Modifier.padding(vertical = 4.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (vm.page) {
                     "Jardín" -> GardenPage(vm, confirm)
@@ -188,66 +190,64 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
 @Composable
 private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, speak: (String) -> Unit, dictate: () -> Unit, send: () -> Unit,
     confirm: (String, () -> Unit) -> Unit) {
+    var options by remember { mutableStateOf(false) }
+    var settings by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        CompanionCard(vm,speaking,greet)
-        EngineSelector(vm)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SakuraMascot(size = 42.dp, speaking = vm.generating || vm.starterDownloading)
-            Column(Modifier.padding(start = 10.dp).weight(1f)) {
-                Text("Tu compañera, a tu ritmo", color = Ink, fontWeight = FontWeight.SemiBold)
-                Text(if (vm.autoSpeak) "Voz automática activada" else "Voz bajo demanda", color = Aqua, fontSize = 11.sp)
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            IconButton(onClick=greet) { AnimatedMascot(36.dp,vm.mascotMotion,vm.generating,speaking) }
+            FilterChip(vm.skills.config.provider=="Local",{vm.skills.selectEngine(true)},enabled=!vm.busy,label={Text("Local")})
+            Spacer(Modifier.width(6.dp))
+            FilterChip(vm.skills.config.provider!="Local",{vm.skills.selectEngine(false)},enabled=!vm.busy,label={Text("En línea")})
+            Spacer(Modifier.weight(1f))
+            Box {
+                TextButton(onClick={options=true}) { Text("Opciones") }
+                DropdownMenu(options,{options=false}) {
+                    DropdownMenuItem(text={Text("Voz / esfuerzo / mascota")},onClick={options=false;settings=true})
+                    DropdownMenuItem(text={Text("Ver aviso completo")},onClick={options=false;notice=true})
+                    DropdownMenuItem(text={Text("Nuevo chat")},enabled=!vm.busy,onClick={options=false;confirm("Borrar chat y borrador; las notas se conservan.",vm::clearChat)})
+                    listOf("Jardín","Modelos","Skills","APIs","Agente","Privacidad","Buscar","Memoria","Herramientas","Crear","GitHub","Descargas","Mensajes","Plan","Pantalla").forEach { page ->
+                        DropdownMenuItem(text={Text(page)},onClick={options=false;vm.page=page})
+                    }
+                }
             }
-            TextButton(onClick = { vm.page = "APIs" }) { Text(vm.skills.config.provider) }
-            TextButton(enabled = !vm.busy && vm.messages.isNotEmpty(), onClick = {
-                confirm("Borrar el chat abierto y su borrador. Las notas de memoria se conservan.", vm::clearChat)
-            }) { Text("Nuevo chat") }
         }
-        if (vm.starterDownloading) {
-            LinearProgressIndicator(progress = { vm.starterFraction }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-            Text(vm.starterProgress, color = Aqua, fontSize = 11.sp)
-        }
-        if (!vm.starterReady || vm.loadedModel == null) StarterModelCard(vm, confirm, compact = true)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-            Text("Escribe «busca …» y Sakura buscará de verdad. ", color = Aqua, fontSize = 11.sp)
-            TextButton(onClick = { if(vm.autoSpeak) vm.updateAutoSpeak(false) else confirm("Leer respuestas en voz alta con voz local, solo en primer plano. Personas cercanas pueden oírlas.") { vm.updateAutoSpeak(true) } }) { Text(if (vm.autoSpeak) "Voz auto: sí" else "Voz auto: no") }
-            TextButton(onClick = { vm.page = "Modelos" }) { Text("Modelos") }
-        }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if(vm.partialReply.isNotEmpty()) item { Card { SelectionContainer { Text("Respuesta parcial…\n${vm.partialReply}",Modifier.padding(12.dp)) } } }
+        if(vm.skills.config.provider=="Local" && vm.loadedModel==null) TextButton(onClick={vm.page="Modelos"}) { Text("Carga un modelo local en Modelos") }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout=true,verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            if(vm.partialReply.isNotEmpty()) item { Card { SelectionContainer { Text(vm.partialReply,Modifier.padding(12.dp)) } } }
             items(vm.messages.asReversed()) { message -> MessageBubble(message) { speak(message.text) } }
-            if (vm.messages.isEmpty()) item {
-                SakuraHero("Hola, soy Sakura.","Cuéntame tu idea. GGUF local o API elegida; las acciones siempre bajo tu control.",true)
-            }
+            if(vm.messages.isEmpty()) item { Text("Hola, soy Sakura. ¿En qué te ayudo?",color=Aqua,modifier=Modifier.padding(12.dp)) }
         }
-        val detected = vm.skills.selected()
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-            Text("${if(vm.draft.isBlank() && vm.skills.manualSkill==null) "Última skill" else "Skill prevista"}: ${detected?.name ?: if(vm.draft.isBlank()) vm.skills.activeSkill else "General"} · ${if(vm.skills.manualSkill==null) "automática" else "manual"}", color = Aqua, fontSize = 12.sp)
-            TextButton(enabled = !vm.busy, onClick = vm.skills::automatic) { Text("Auto") }
-            TextButton(enabled = !vm.busy, onClick = { vm.page = "Skills" }) { Text("Cambiar") }
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            if(vm.generating) TextButton(onClick=vm::cancelGeneration) { Text("Detener") }
+            else if(vm.busy && vm.skills.config.provider!="Local") TextButton(onClick=vm.skills::cancel) { Text("Cancelar") }
+            if(CompanionPolicy.canContinue(vm.messages,vm.draft)) TextButton(enabled=!vm.busy,onClick=vm::continueAnswer) { Text("Continuar") }
         }
-        if (vm.generating) TextButton(onClick = vm::cancelGeneration) { Text("Detener generación") }
-        if(CompanionPolicy.canContinue(vm.messages,vm.draft)) TextButton(enabled=!vm.busy,onClick=vm::continueAnswer) { Text("Continuar · pedir otra parte") }
-        Text("Respuestas por partes, no ilimitadas. Bajo reduce salida/contexto; Continuar hace una nueva petición y la nube pide confirmación.",fontSize=11.sp,color=Aqua)
-        if (vm.busy && vm.skills.config.provider != "Local") TextButton(onClick=vm.skills::cancel) { Text("Cancelar petición nube") }
-        if (vm.draft.isNotBlank()) TextButton(enabled=!vm.busy,onClick={vm.skills.route(vm.draft)}) { Text("Preparar como búsqueda (sin enviarla al modelo)") }
-        if(vm.draft.isNotBlank()) TextButton(enabled=!vm.busy,onClick={
-            if(vm.agent.active || vm.agent.awaiting) vm.notice("Detén la sesión actual de Agente antes de cambiar su objetivo.")
-            else { vm.agent.goal=vm.draft.trim().take(1500); vm.page="Agente"; vm.notice("Petición preparada: inicia el Agente y revisa cada acción. No se ha ejecutado nada.") }
-        }) { Text("Abrir apps / escribir / buscar con Agente…") }
-        Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(enabled = !vm.busy, onClick = dictate) { Icon(Icons.Default.Mic, "Dictar o terminar dictado", tint = Aqua) }
-            OutlinedTextField(value = vm.draft, onValueChange = { vm.draft = it }, enabled = !vm.busy,
-                modifier = Modifier.weight(1f), placeholder = { Text("Escribe, dicta o pide «busca …»") }, maxLines = 5)
-            IconButton(enabled = !vm.busy && vm.draft.isNotBlank(), onClick = send) { Icon(Icons.AutoMirrored.Filled.Send, "Enviar local, buscar o revisar API", tint = Pink) }
+        Row(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(20.dp)).padding(6.dp),verticalAlignment=Alignment.CenterVertically) {
+            IconButton(enabled=!vm.busy,onClick=dictate) { Icon(Icons.Default.Mic,"Dictar",tint=Aqua) }
+            OutlinedTextField(vm.draft,{vm.draft=it},enabled=!vm.busy,modifier=Modifier.weight(1f),placeholder={Text("Escribe tu mensaje")},maxLines=3)
+            IconButton(enabled=!vm.busy && vm.draft.isNotBlank(),onClick=send) { Icon(Icons.AutoMirrored.Filled.Send,"Enviar",tint=Pink) }
         }
-        Text("El dictado no envía mensajes. El chat se mantiene solo durante esta sesión. La búsqueda pide confirmación.", fontSize = 11.sp, color = Ink.copy(alpha = 0.6f), modifier = Modifier.padding(top = 6.dp))
     }
+    if(notice) AlertDialog(onDismissRequest={notice=false},title={Text("Aviso")},text={Text(vm.status.ifBlank { "Sin avisos." })},confirmButton={TextButton(onClick={notice=false}) { Text("Cerrar") }})
+    if(settings) AlertDialog(onDismissRequest={settings=false},title={Text("Opciones del chat")},text={
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            EngineSelector(vm)
+            Text("Bajo: respuesta corta y directa. Alto: más detalle. Las skills guían el texto; las herramientas requieren confirmación.")
+            Text("Skill: ${vm.skills.selected()?.name ?: vm.skills.activeSkill}")
+            TextButton(onClick={vm.skills.automatic()}) { Text("Skills automáticas") }
+            TextButton(onClick={vm.playfulCompanion()}) { Text("¡Saltito!") }
+            Text(vm.companionPhrase)
+            TextButton(onClick={vm.mascotPreferences(vm.kawaii,!vm.mascotMotion,vm.autoVoice)}) { Text(if(vm.mascotMotion) "Desactivar movimiento" else "Activar movimiento") }
+            TextButton(onClick={if(vm.autoVoice) vm.updateAutoSpeak(false) else confirm("Voz española local automática, solo en primer plano; pueden oírla otras personas.") { vm.updateAutoSpeak(true) }}) { Text(if(vm.autoVoice) "Voz auto: sí" else "Voz auto: no") }
+        }
+    },confirmButton={TextButton(onClick={settings=false}) { Text("Cerrar") }})
 }
 
 @Composable
 private fun MessageBubble(message: ChatMessage, onSpeak: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromSakura) Arrangement.Start else Arrangement.End, verticalAlignment = Alignment.Bottom) {
-        if (message.fromSakura) SakuraMascot(size = 30.dp, modifier = Modifier.padding(end = 6.dp))
+        if (message.fromSakura) Image(painterResource(R.drawable.sakura_avatar),"Sakura",Modifier.padding(end=6.dp).size(30.dp),contentScale=ContentScale.Crop)
         Card(Modifier.fillMaxWidth(if (message.fromSakura) 0.82f else 0.92f), colors = CardDefaults.cardColors(containerColor = if (message.fromSakura) Panel else Pink.copy(alpha = 0.18f)), shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 SelectionContainer(Modifier.weight(1f)) { Text(message.text, color = if (message.fromSakura) Ink else Pink, fontSize = 15.sp) }
@@ -297,6 +297,7 @@ private fun ModelsPage(vm: SakuraViewModel, choose: () -> Unit, confirm: (String
         }
     }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Info("Si incluso hola agotó el tiempo, prueba Qwen 0.5B (≈491 MB), carga el modelo y usa Bajo. Imagen/video: descargas externas, NO ejecutables en Sakura.") }
         item { StarterModelCard(vm, confirm) }
         item { Info("Motor llama.cpp en CPU · Android 13+ ARM64. El modelo inicial se descarga una vez y queda en el almacenamiento privado; la APK no incluye pesos. Archivo ≠ memoria necesaria. No se promete rapidez. Importación: 2.5 GB; contexto: 2048 tokens.") }
         item { Row { TextButton(onClick = { vm.page = "Descargas" }) { Text("Descargas y GGUF personalizado") }; TextButton(enabled = !vm.busy, onClick = vm::memoryStats) { Text("Medir RAM actual") } } }

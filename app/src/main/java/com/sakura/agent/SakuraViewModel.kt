@@ -255,8 +255,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
                 .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
             viewModelScope.launch {
                 if(id == generationId && generating && busy) {
-                    generatedTokens = count; partialReply = decoded
-                    status = if(count == 0) "Procesando contexto local… puedes detener." else "Generando localmente: $count tokens… respuesta parcial, no definitiva."
+                    generatedTokens = count.coerceAtLeast(0); partialReply = decoded
+                    status = if(count < 0) "Preparando contexto: ${-count-1}% · puedes detener." else if(count == 0) "Procesando contexto local… puedes detener." else "Generando: $count tokens"
                 }
             }
         }
@@ -386,10 +386,10 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
         val previous = messages
         val effort = skills.config.effort
-        val history = ThinkingPolicy.boundedHistory(previous,effort) + ChatMessage(text, false)
+        val detailed = effort == "Alto"
+        val history = LocalChatPolicy.history(previous,text,detailed)
         val skill = skills.markSelected(text)
-        val system = AgentPolicy.systemPrompt(level, humor, memories.takeLast(ThinkingPolicy.memories(effort))) + Skills.guidance(skill) +
-            ThinkingPolicy.guidance(effort) + if(kawaii) ThinkingPolicy.kawaii else ""
+        val system = LocalChatPolicy.system(text,skill,memories,detailed)
         draft = ""; messages = previous + ChatMessage(text, false)
         work("Sakura está pensando localmente…") {
             engine?.nativeResetCancellation()
@@ -398,7 +398,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val start = android.os.SystemClock.elapsedRealtime()
                 val callback = progress()
-                val answer = withContext(nativeWorker) { native().generate(system, history,ThinkingPolicy.localTokens(effort),ThinkingPolicy.localTimeoutMs(effort),callback) }
+                val answer = withContext(nativeWorker) { native().generate(system, history,LocalChatPolicy.outputTokens(text,detailed),ThinkingPolicy.localTimeoutMs(effort),callback) }
                 messages = messages + ChatMessage(answer, true)
                 reactCompanion("Lista", speak=false)
                 if(autoVoice) pendingSpeech = answer

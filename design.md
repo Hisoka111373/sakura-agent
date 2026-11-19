@@ -27,3 +27,6 @@ No hay render móvil físico/emulador disponible; validar Kotlin/Compose/API35,
 JVM/recursos y CI Android. No afirmar prueba visual en dispositivo.
 ## 0.8 companion motion
 Preserve all original WebP art/night pink/turquoise. Avatar transforms only: finite greeting tilt, two/three small hops, breathing, thinking sway, real TTS pulse. No lip-sync claim. Pause while backgrounded/disabled; never replay background events. Local phrase card, no network/token usage.
+
+## 0.8.1 chat repair
+Chat is conversation-first: tiny live avatar, Local/online chips, Options menu; transcript takes remaining height. No hero/starter card/skill/search banners in chat. All other screens reachable through Options; controls and full notice in dialogs. Historical bubble avatars static to avoid many concurrent idle animations. Live avatar adds squash/stretch on finite hops and lateral greeting movement, respects background/motion settings.
