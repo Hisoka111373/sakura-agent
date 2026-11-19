@@ -46,6 +46,21 @@ jobs:
       - name: Build debug APK (ARM64)
         run: gradle --no-daemon assembleDebug
 
+      - name: Verify native CPU optimization
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, shlex
+          rows = []
+          for p in pathlib.Path('app/.cxx').rglob('compile_commands.json'):
+              rows.extend(json.loads(p.read_text()))
+          native = [r for r in rows if 'ggml' in r['file'] or 'llama' in r['file'] or r['file'].endswith('sakura_llm.cpp')]
+          assert native, 'No native compile commands found'
+          for r in native:
+              flags = [x for x in shlex.split(r['command']) if x.startswith('-O')]
+              assert flags and flags[-1] == '-O3', f'Native source not optimized: {r["file"]}, {flags}'
+          print(f'PASS: {len(native)} native compile commands use effective -O3, including llama/ggml')
+          PY
+
       - uses: actions/upload-artifact@v4
         with:
           name: sakura-agent-debug-apk

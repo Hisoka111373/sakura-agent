@@ -32,7 +32,7 @@ object ThinkingPolicy {
         var room = budget - fittedSystem.length - newest.text.length - localPromptTrimmed.length
         val older = mutableListOf<ChatMessage>()
         for (message in messages.dropLast(1).asReversed()) {
-            if (room <= 0) break
+            if (room <= 48) break
             val text = if (message.text.length <= room) message.text else "[Fragmento final; contexto anterior recortado]\n" + message.text.takeLast(room - 48)
             older.add(0, message.copy(text = text))
             room -= text.length + 32

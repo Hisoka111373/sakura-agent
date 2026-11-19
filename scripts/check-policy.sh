@@ -19,10 +19,11 @@ trap 'rm -rf "$OUT"' EXIT
     "$ROOT/app/src/main/java/com/sakura/agent/ThinkingPolicy.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/PhoneText.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/CompanionPolicy.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/LocalChatPolicy.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/AgentTools.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/ToolCallParser.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/WebText.kt" \
     "$ROOT/app/src/test/java/com/sakura/agent/"*Test.kt \
     -cp "$JUNIT_JAR:$JSON_JAR" -include-runtime -d "$OUT/tests.jar"
 java -cp "$OUT/tests.jar:$JUNIT_JAR:$HAMCREST_JAR:$JSON_JAR" org.junit.runner.JUnitCore \
-    com.sakura.agent.AgentPolicyTest com.sakura.agent.NetworkPolicyTest com.sakura.agent.AgentPlannerTest com.sakura.agent.SkillsTest com.sakura.agent.SkillLibraryTest com.sakura.agent.AgentIntegrationTest com.sakura.agent.ThinkingPolicyTest com.sakura.agent.ChatSearchTest com.sakura.agent.CompanionPolicyTest com.sakura.agent.ModelCatalogExtrasTest com.sakura.agent.SupervisedFeaturesTest
+    com.sakura.agent.AgentPolicyTest com.sakura.agent.NetworkPolicyTest com.sakura.agent.AgentPlannerTest com.sakura.agent.SkillsTest com.sakura.agent.SkillLibraryTest com.sakura.agent.AgentIntegrationTest com.sakura.agent.ThinkingPolicyTest com.sakura.agent.ChatSearchTest com.sakura.agent.CompanionPolicyTest com.sakura.agent.LocalChatPolicyTest com.sakura.agent.ModelCatalogExtrasTest com.sakura.agent.SupervisedFeaturesTest

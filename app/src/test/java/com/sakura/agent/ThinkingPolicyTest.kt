@@ -46,6 +46,7 @@ class ThinkingPolicyTest {
         assertTrue(totalChars / 3 + 64 + ThinkingPolicy.localTokens("Alto") < ThinkingPolicy.localContextTokens)
         assertEquals("hola", fittedHistory.last().text)
     }
+    @Test fun tinyHistoryRoomDoesNotThrow() { val (_, h) = ThinkingPolicy.fitLocalPrompt("Bajo", "s".repeat(600), listOf(ChatMessage("old".repeat(100),true),ChatMessage("x".repeat(2715),false))); assertEquals(1,h.size) }
     @Test fun localMemoriesAreCappedWithoutChangingTheirOrder() {
         val notes = (1..20).map { Memory("$it", "Proyecto", "n".repeat(500)) }
         val local = ThinkingPolicy.localMemories(notes, "Bajo")

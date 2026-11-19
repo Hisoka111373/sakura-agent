@@ -53,9 +53,10 @@ internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaki
     val wave = kotlin.math.sin(gesture.value * kotlin.math.PI.toFloat() * 6f)
     val hop = if(event == "Saltito" || event == "Lista") -kotlin.math.abs(wave) * 12f else 0f
     val greetingTilt = if(event == "Saludo") wave * 13f else wave * 3f
+    val squash = if(event == "Saltito" || event == "Lista") kotlin.math.abs(wave) * 0.06f else 0f
     val density=LocalDensity.current.density
     Image(painterResource(R.drawable.sakura_avatar),"Sakura: ${if(speaking) "hablando" else if(thinking) "pensando" else "contigo"}",
-        Modifier.size(size).graphicsLayer { translationY=(values.first+hop)*density; rotationZ=values.second+greetingTilt; scaleX=values.third; scaleY=values.third }.clip(CircleShape),contentScale=ContentScale.Crop)
+        Modifier.size(size).graphicsLayer { translationY=(values.first+hop)*density; translationX=wave*3f*density; rotationZ=values.second+greetingTilt; scaleX=values.third-squash; scaleY=values.third+squash }.clip(CircleShape),contentScale=ContentScale.Crop)
 }
 
 @Composable

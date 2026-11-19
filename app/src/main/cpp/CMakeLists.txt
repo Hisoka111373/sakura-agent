@@ -22,6 +22,10 @@ set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
 set(GGML_CUDA OFF CACHE BOOL "" FORCE)
 set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
 
+# AGP debug builds otherwise compile CPU inference without optimization (-O0).
+# Keep the Java APK debug-signable, but optimize every native dependency.
+add_compile_options(-O3)
+
 add_subdirectory("${LLAMA_SRC}" "${CMAKE_BINARY_DIR}/llama.cpp")
 add_library(sakura_llm SHARED sakura_llm.cpp)
 target_compile_features(sakura_llm PRIVATE cxx_std_17)
