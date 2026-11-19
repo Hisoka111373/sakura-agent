@@ -1,3 +1,27 @@
+# Sakura 0.9.1 — APK verificada
+
+Archivo: `SakuraAgent-0.9.1-arm64-debug.apk`. Versión Android **0.9.1**, versionCode **11**, paquete `com.sakura.agent`. Android 13+ ARM64; APK debug, no versión de tienda.
+
+- Fuente: `03783eb9cddaeb022940f6f245b4fbb12b468d7d` (PR #13).
+- CI: https://github.com/Hisoka111373/sakura-agent/actions/runs/44457756920 — éxito: pruebas Gradle, build ARM64 y verificación de -O3 efectivo en llama/ggml/JNI.
+- 143 pruebas JVM portátiles aprobadas; compilación Kotlin/API35 y sintaxis C++ verificadas también.
+- Tamaño: **65369281 bytes**.
+- SHA-256: `3354adf104353337ce449ee334184230fa2a32450ba6381effdae825eb3b9560`.
+- ZIP/CRC, manifiesto 0.9.1/code11, bibliotecas ELF ARM64, arte original y ausencia de las claves configuradas: verificados.
+- Firma APK v2 verificada. Certificado debug SHA-256: `22b8a7c64d91dc5d6c73fb3300c52f69ec14674e8c0c029f8e45d15102a2bada`.
+
+Repara la ruta local: prompt compacto, saludos sin arrastrar historial/notas, salida corta en Bajo, motor CPU optimizado y porcentaje de preparación del contexto. La respuesta dispone de su propio plazo limitado después del contexto; no elimina los timeouts ni simula respuestas. Prueba Qwen2.5 0.5B Instruct (~491 MB), modo Bajo y «hola».
+
+Chat despejado: Local/En línea, conversación, dictado, enviar/detener y Continuar. El resto está en Opciones, incluidos Archivos, skills y ajustes. Mascota con salto squash/stretch y movimiento lateral; conserva arte original, Jardín y 93 skills. Conserva controles de teléfono supervisados de 0.9.0 y modelos Q3; añade Coder0.5B. Imagen/video son descargas externas: no hay motor local para generarlos en Sakura.
+
+**Rendimiento y funcionamiento físico pendientes de probar en tu teléfono.** La firma difiere de 0.9.0: Android podría rechazar una actualización directa. No desinstales sin preservar tus datos; recuerdos, claves y modelos privados pueden perderse, y Keystore no se restaura simplemente copiando archivos.
+
+Se conserva 0.9.0 y las demás APK existentes. No se restaura la APK 8.0 retirada; su descripción inferior es solo histórica.
+
+---
+
+## Documentación histórica (no describe 0.9.1)
+
 # Sakura 0.9.0 — APK nueva
 
 Archivo: `SakuraAgent-0.9.0-arm64-debug.apk` (**0.9.0**, versionCode `10`, paquete `com.sakura.agent`). Android 13+ ARM64, build debug, no release de tienda.
