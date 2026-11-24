@@ -100,7 +100,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         require(kind in listOf("Imagen","Video","Audio","Modelo") && (kind != "Modelo" || model in ModelCatalog.entries ||
             NetworkPolicy.ggufHash(expectedHash.orEmpty()) && uri.path.endsWith(".gguf",true)))
         val details = if (model != null) {
-            val free = File(if (model.category == "Chat") LocalFiles.modelDir(context) else downloads.dir(context)).usableSpace / (1024 * 1024)
+            val free = (if (model.category == "Chat") LocalFiles.modelDir(context) else downloads.dir(context)).usableSpace / (1024 * 1024)
             "${model.title}\n${model.category} · ${model.bytes} bytes\nLicencia: ${model.license}\n${model.warning}\nSHA-256 esperado: ${model.sha256}\nEspacio libre actual: $free MiB (se reservan 256 MiB de margen)."
         } else if (kind == "Modelo")
             "GGUF personalizado · máximo ${AgentPolicy.MAX_MODEL_BYTES} bytes.\nSHA-256 esperado: $expectedHash\nObtén el hash del editor por una fuente independiente: un hash inventado por la IA no demuestra autenticidad. Revisa origen y licencia. Cabecera/hash no garantizan seguridad ni compatibilidad."

@@ -127,7 +127,11 @@ object MediaReader {
         } finally { retriever.release() }
         val extractor = MediaExtractor()
         try {
-            extractor.setDataSource(context, uri)
+            val descriptor = context.contentResolver.openAssetFileDescriptor(uri, "r")
+                ?: error("Android no dio acceso al vídeo.")
+            descriptor.use {
+                extractor.setDataSource(it.fileDescriptor, it.startOffset, it.length)
+            }
             for (i in 0 until extractor.trackCount) {
                 val trackMime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME).orEmpty()
                 tracks.append(if (trackMime.startsWith("audio/")) "audio" else if (trackMime.startsWith("video/")) "vídeo" else trackMime).append(' ')
@@ -186,8 +190,9 @@ object MediaReader {
         val raw = context.contentResolver.openInputStream(uri)?.use { it.readNBytes(MAX_COPY.toInt()) }
             ?: error("Android no dio acceso al documento.")
         val xml = ZipInputStream(raw.inputStream()).use { zip ->
-            while (zip.nextEntry != null) {
-                if (zip.name == "word/document.xml") return@use zip.readBytes().toString(Charsets.UTF_8)
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.name == "word/document.xml") return@use zip.readBytes().toString(Charsets.UTF_8)
             }
             ""
         }
