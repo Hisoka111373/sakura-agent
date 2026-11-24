@@ -13,5 +13,5 @@ class LocalChatPolicyTest {
     @Test fun hugeSkillInstructionIsBounded() { val p=LocalChatPolicy.system("codigo",SakuraSkill("Prueba","Chat","x".repeat(10000)),emptyList(),false); assertTrue(p.length<450) }
     @Test fun preservesNewUserMessage() { val text="x".repeat(5000); val h=LocalChatPolicy.history(emptyList(),text,false); assertEquals(text,h.last().text) }
     @Test fun boundsOldHistoryWithoutChangingChat() { val original=List(10) { ChatMessage("z".repeat(9000),true) }; val h=LocalChatPolicy.history(original,"continua",false); assertEquals(3,h.size); assertTrue(h.dropLast(1).all { it.text.length<650 }); assertEquals(9000,original.first().text.length) }
-    @Test fun tinyModelsPinnedAndVisualsNotChat() { assertTrue(ModelCatalog.entries.count { it.category=="Chat" && it.bytes<500_000_000 } >= 2); assertTrue(ModelCatalog.entries.filter { it.category!="Chat" }.all { it.warning.contains("NO incluye motor") || it.warning.contains("sin motor local en Sakura") }) }
+    @Test fun tinyModelsPinnedAndVisualsNotChat() { assertTrue(ModelCatalog.entries.count { it.category=="Chat" && it.bytes<500_000_000 } >= 2); assertTrue(ModelCatalog.entries.filter { it.category!="Chat" }.all { it.warning.contains("Descarga externa") }) }
 }
