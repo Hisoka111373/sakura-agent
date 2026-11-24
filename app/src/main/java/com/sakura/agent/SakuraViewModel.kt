@@ -106,6 +106,8 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var autoLoadStarter by mutableStateOf(true)
         private set
+    var autoDownloadFast by mutableStateOf(false)
+        private set
     val autoSpeak: Boolean get() = autoVoice
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -123,6 +125,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             hasToken = withContext(Dispatchers.IO) { !store.read("github_token").isNullOrBlank() }
             autoDownloadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_KEY) == "true" }
             autoLoadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_LOAD_KEY) != "false" }
+            autoDownloadFast = withContext(Dispatchers.IO) { store.read(StarterModel.FAST_KEY) == "true" }
             models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
             features.initialize()
             skills.initialize()
@@ -150,9 +153,14 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         require(models.any { it.id == model.id }) { "El modelo no está en el almacenamiento privado." }
         loadedModel = null
         val start = android.os.SystemClock.elapsedRealtime()
-        withContext(nativeWorker) { native().nativeLoad(File(LocalFiles.modelDir(app), model.id).path) }
+        val runtime = withContext(nativeWorker) {
+            val engine = native()
+            engine.nativeLoad(File(LocalFiles.modelDir(app), model.id).path)
+            engine.nativeWarmup()
+            engine.nativeRuntimeInfo()
+        }
         loadedModel = model; messages = emptyList()
-        status = "${model.name} cargado en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s. CPU · contexto 2048 · máximo 384 tokens de salida."
+        status = "${model.name} listo en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s (carga + precalentamiento). $runtime"
     }
 
     private suspend fun downloadStarterInternal() {
@@ -174,6 +182,17 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             val entry = models.firstOrNull { it.id == result.file.name }
                 ?: error("El modelo se descargó pero no aparece en Modelos.")
             starterReady = true
+            if (autoDownloadFast && models.none { StarterModel.matchesFast(it.name) }) {
+                starterProgress = "Descargando modelo rápido de respaldo (0.5B · ${"%.2f".format(StarterModel.fast.bytes/1e9)} GB)…"
+                status = "Descargando también el GGUF rápido verificado para el modo veloz sin red…"
+                val fastResult = features.downloadStarter(StarterModel.fast) { done, total ->
+                    val fraction = if (total > 0) (done.toFloat()/total).coerceIn(0f,1f) else 0f
+                    val text = "Rápido 0.5B: ${done/(1024*1024)} MiB / ${if(total>0) "${total/(1024*1024)} MiB" else "?"} · ${(fraction*100).toInt()}%"
+                    mainHandler.post { starterProgress = text; starterFraction = fraction }
+                }
+                refreshModels()
+                status = "Modelo rápido verificado (${fastResult.sha256.take(12)}…). Cargando el principal en CPU…"
+            }
             starterProgress = "Verificado. Cargando en CPU…"
             status = "Modelo verificado. Cargando en CPU; puede tardar…"
             loadModelBlocking(entry)
@@ -213,6 +232,14 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         withContext(Dispatchers.IO) { store.write(StarterModel.AUTO_LOAD_KEY, enabled.toString()) }
         autoLoadStarter = enabled
         status = if (enabled) "El modelo inicial se cargará al iniciar Sakura." else "Carga automática desactivada; usa Cargar en Modelos."
+    }
+
+    fun updateAutoDownloadFast(enabled: Boolean) = work("Guardando preferencia de modelo rápido…") {
+        withContext(Dispatchers.IO) { store.write(StarterModel.FAST_KEY, enabled.toString()) }
+        autoDownloadFast = enabled
+        status = if (enabled)
+            "Al descargar el modelo inicial se guardará también Qwen2.5 0.5B Q4_K_M (≈491 MB, SHA verificado) para el modo rápido sin red."
+        else "El modelo rápido de respaldo no se descargará automáticamente."
     }
 
     fun updateAutoSpeak(enabled: Boolean) = work("Guardando preferencia de voz…") {
@@ -279,6 +306,17 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
     internal suspend fun refreshModels() { models = withContext(Dispatchers.IO) { LocalFiles.models(app) } }
     internal fun invalidateRepo() { repoFile = null; pendingEdit = null }
+    internal fun showRepoFile(file: RepoFile) { pendingEdit = null; repoFile = file; page = "GitHub" }
+    /** Agent-proposed edit: a single exact fragment is replaced; the human still confirms the commit. */
+    internal fun showRepoEdit(file: RepoFile, find: String, replacement: String, message: String): Boolean {
+        if (find.isBlank() || replacement.length > 4096 || message.isBlank() || message.length > 200) return false
+        val found = file.text.windowed(find.length).count { it == find }
+        if (found != 1) return false
+        val updated = file.text.replaceFirst(find, replacement)
+        if (updated == file.text || updated.toByteArray(Charsets.UTF_8).size > AgentPolicy.MAX_SOURCE_BYTES) return false
+        repoFile = file; pendingEdit = PendingEdit(file, updated, message.trim()); page = "GitHub"
+        return true
+    }
     internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
         check(messages == previous && draft == original) { "El borrador cambió; respuesta no insertada." }
         messages = previous + ChatMessage(original.trim(),false) + ChatMessage(answer,true)

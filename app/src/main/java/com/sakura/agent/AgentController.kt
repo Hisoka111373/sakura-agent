@@ -108,6 +108,27 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
                     val file = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.read(arg("owner"),arg("repo"),arg("branch"),arg("path"),store.read("github_token").orEmpty()) }
                     "SHA ${file.sha}\n${file.path}\n${file.text}"
                 }
+                "github_tree" -> vm.features.prepare("LISTAR ARCHIVOS DE GitHub\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nSolo lectura, hasta 300 blobs. No descarga contenido, no escribe y no abre apps. El listado puede revelar nombres privados; se muestra localmente.") {
+                    github.reset()
+                    withContext(Dispatchers.IO) { check(vm.internetAllowed); github.tree(arg("owner"),arg("repo"),arg("branch"),store.read("github_token").orEmpty()) }
+                }
+                "github_open" -> vm.features.prepare("ABRIR ARCHIVO EN EL PANEL DE GITHUB\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nRuta: ${arg("path")}\nSolo lectura: GitHub devuelve el SHA actual y Sakura abre el editor local. Ningún commit se prepara ni se envía sin otra revisión.") {
+                    github.reset()
+                    val file = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.read(arg("owner"),arg("repo"),arg("branch"),arg("path"),store.read("github_token").orEmpty()) }
+                    vm.showRepoFile(file)
+                    "Archivo ${file.path} abierto en GitHub (SHA ${file.sha}). Revisa el diff y confirma por separado si decides editarlo."
+                }
+                "github_issues" -> vm.features.prepare("LISTAR ISSUES ABIERTOS EN GITHUB\n${arg("owner")}/${arg("repo")}\nSolo lectura, primera página (30 issues). Muestra número, estado, título y URL; contenido NO confiable, no se envía al modelo automáticamente.") {
+                    github.reset()
+                    withContext(Dispatchers.IO) { check(vm.internetAllowed); github.list(arg("owner"),arg("repo"),"main","Issues",store.read("github_token").orEmpty()) }
+                }
+                "github_edit" -> vm.features.prepare("PREPARAR EDICIÓN DE GITHUB (todavía NO se escribe)\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nRuta: ${arg("path")}\nFragmento exacto a sustituir:\n${arg("find")}\nReemplazo:\n${arg("replacement")}\nCommit propuesto: ${arg("message")}\n\nSe leerá el SHA actual y se abrirá ANTES/DESPUÉS en el panel. Solo si tú confirmas se enviará el commit real. Usa una rama de trabajo.",true) {
+                    github.reset()
+                    val file = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.read(arg("owner"),arg("repo"),arg("branch"),arg("path"),store.read("github_token").orEmpty()) }
+                    val ready = vm.showRepoEdit(file,arg("find"),arg("replacement"),arg("message"))
+                    check(ready) { "El fragmento no aparece una sola vez en el archivo o el cambio no es válido; no se preparó ninguna edición." }
+                    "Archivo ${file.path} leído (SHA ${file.sha}). Propuesta abierta en el panel GitHub; revisa ANTES/DESPUÉS. NO se ha escrito nada."
+                }
                 "model_list" -> vm.features.prepare("MOSTRAR CATÁLOGO LOCAL\nNo descarga ni carga modelos. Revisa licencias y límites.",false) {
                     ModelCatalog.entries.joinToString("\n") { "${it.file} · ${it.title} · ${it.bytes} bytes · ${it.license}" }
                 }
@@ -132,6 +153,16 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
                     context.startActivity(intent.setComponent(android.content.ComponentName(entry.activityInfo.packageName,entry.activityInfo.name)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                     "Android aceptó abrir ${arg("package")}; su contenido/resultado NO verificado."
                 }
+                "open_app_named" -> {
+                    val name = arg("name").lowercase()
+                    val pkg = ScreenPolicy.apps.getValue(name)
+                    vm.features.prepare("ABRIR APP POR NOMBRE CONOCIDO\nNombre: $name\nPaquete resuelto: $pkg\nSolo actividad de inicio visible. Esa app usa sus propios permisos y cuenta; Sakura no automatiza controles, compras ni mensajes y no verifica su contenido.",false) {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(pkg)
+                        val entry = context.packageManager.queryIntentActivities(intent,android.content.pm.PackageManager.ResolveInfoFlags.of(0)).firstOrNull { it.activityInfo.exported } ?: error("App no visible o sin actividad de inicio.")
+                        context.startActivity(intent.setComponent(android.content.ComponentName(entry.activityInfo.packageName,entry.activityInfo.name)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        "Android aceptó abrir $name ($pkg); su contenido/resultado NO verificado. Para buscar, usa video_search o browser_search con otra confirmación."
+                    }
+                }
                 "screen_start" -> vm.features.prepare("INICIAR SESIÓN LIMITADA DE PANTALLA\nApp: ${arg("package")}\nConsulta exacta: ${arg("query")}\nHasta 3 minutos. Solo lee controles accesibles de esa app durante la sesión; sin capturas ni envío al modelo. Escribir/clicar necesita otra confirmación en Pantalla. Sin pagos/mensajes/contraseñas/instalaciones.",false) {
                     val service = SakuraAccessibilityService.connected ?: error("Activa Accesibilidad manualmente en Ajustes.")
                     service.startSession(arg("package"),arg("query")); vm.page = "Pantalla"
@@ -145,6 +176,8 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
                     }
                     "Android aceptó abrir la URL; resultados NO extraídos ni enviados al modelo."
                 }
+                "video_search" -> vm.skills.prepareExternal(Skills.searchUrl("YouTube",arg("query")),"com.google.android.youtube")
+                "browser_search" -> vm.skills.prepareExternal(Skills.searchUrl("Web",arg("query")))
                 "screen_read" -> vm.features.prepare("LEER TEXTO VISIBLE DE LA PANTALLA AUTORIZADA\nRequiere sesión activa y la app autorizada. Hasta 200 nodos, profundidad 12 y 4000 caracteres; excluye contraseñas, campos sensibles y etiquetas bloqueadas. NUNCA se envía al modelo ni a la red automáticamente. Se muestra en el panel y en Agente; revisa antes de compartir.",false) {
                     val service = SakuraAccessibilityService.connected ?: error("Activa el servicio y una sesión manualmente en Pantalla.")
                     val visible = service.readVisibleText()

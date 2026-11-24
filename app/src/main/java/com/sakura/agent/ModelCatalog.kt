@@ -46,6 +46,10 @@ object StarterModel {
     const val ATTEMPT_KEY = "starter_attempted"
     const val DONE_KEY = "starter_completed"
     const val AUTO_LOAD_KEY = "starter_auto_load"
+    const val FAST_KEY = "starter_fast_download"
     val entry: CatalogModel = ModelCatalog.entries.first { it.file == "qwen2.5-1.5b-instruct-q4_k_m.gguf" }
+    /** Small verified GGUF kept locally so the fast mode works offline after the first download. */
+    val fast: CatalogModel = ModelCatalog.entries.first { it.file == "qwen2.5-0.5b-instruct-q4_k_m.gguf" }
     fun matches(name: String): Boolean = name.contains("qwen2.5-1.5b-instruct-q4_k_m", ignoreCase = true)
+    fun matchesFast(name: String): Boolean = name.contains("qwen2.5-0.5b-instruct-q4_k_m", ignoreCase = true)
 }

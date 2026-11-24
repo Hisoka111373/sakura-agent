@@ -6,6 +6,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Single process engine; Java serializes requests, mutex protects teardown.
@@ -17,7 +18,8 @@ llama_context *ctx = nullptr;
 llama_sampler *sampler = nullptr;
 bool initialized = false;
 constexpr int contextSize = 2048;
-constexpr int batchSize = 256;
+// Larger prefill batches keep ARM64 cores busy without growing the KV cache.
+constexpr int batchSize = 512;
 std::atomic<int64_t> deadlineNanos{0};
 int64_t nowNanos() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -28,6 +30,13 @@ struct BatchGuard { llama_batch &batch; ~BatchGuard() { llama_batch_free(batch);
 
 bool abortDecode(void *) { return cancelled.load() || timedOut(); }
 bool loadProgress(float, void *) { return !cancelled.load(); }
+
+// Phones report all cores, including little ones; leave one free for the UI.
+int optimalThreads() {
+    const unsigned int detected = std::thread::hardware_concurrency();
+    const int cores = detected > 0 ? static_cast<int>(detected) : 4;
+    return std::clamp(cores > 4 ? cores - 1 : cores, 2, 6);
+}
 
 void unload() {
     if (sampler) llama_sampler_free(sampler);
@@ -146,7 +155,11 @@ Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring path)
         if (!model) throw std::runtime_error("GGUF load failed or was cancelled. Check model compatibility and available RAM.");
         auto cp = llama_context_default_params();
         cp.n_ctx = contextSize; cp.n_batch = batchSize; cp.n_ubatch = batchSize;
-        cp.n_threads = 4; cp.n_threads_batch = 4;
+        const int threads = optimalThreads();
+        cp.n_threads = threads; cp.n_threads_batch = threads;
+        cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED;
+        cp.type_k = GGML_TYPE_Q8_0; cp.type_v = GGML_TYPE_Q8_0;
+        cp.no_perf = true;
         cp.abort_callback = abortDecode;
         ctx = llama_init_from_model(model, cp);
         if (!ctx) throw std::runtime_error("Context allocation failed. Try a smaller model.");
@@ -156,6 +169,47 @@ Java_com_sakura_agent_NativeLlama_nativeLoad(JNIEnv *env, jobject, jstring path)
         llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
     } catch (const std::exception &e) { unload(); fail(env, e.what()); }
+}
+
+// Best-effort prefill after loading so the first real message skips thread/KV setup.
+// Never throws: a failed warm-up must not invalidate a correctly loaded model.
+extern "C" JNIEXPORT void JNICALL
+Java_com_sakura_agent_NativeLlama_nativeWarmup(JNIEnv *, jobject) {
+    std::lock_guard<std::mutex> guard(mutex);
+    if (!model || !ctx || !sampler) return;
+    try {
+        // nativeLoad() owns cancellation reset. Do not clear a cancel requested
+        // between loading and warm-up here.
+        auto tokens = tokenize("hola");
+        if (tokens.empty() || tokens.size() >= contextSize) return;
+        auto batch = llama_batch_init(static_cast<int>(tokens.size()), 0, 1);
+        BatchGuard batchGuard{batch};
+        batch.n_tokens = static_cast<int>(tokens.size());
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            batch.token[i] = tokens[i]; batch.pos[i] = static_cast<llama_pos>(i);
+            batch.n_seq_id[i] = 1; batch.seq_id[i][0] = 0;
+            batch.logits[i] = i + 1 == tokens.size();
+        }
+        if (llama_decode(ctx, batch) == 0) llama_memory_clear(llama_get_memory(ctx), true);
+        llama_synchronize(ctx);
+        llama_sampler_reset(sampler);
+    } catch (...) { /* warm-up is optional */ }
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_sakura_agent_NativeLlama_nativeRuntimeInfo(JNIEnv *env, jobject) {
+    std::lock_guard<std::mutex> guard(mutex);
+    std::string info;
+    if (!ctx) {
+        info = "motor sin modelo cargado";
+    } else {
+        info = "ctx=" + std::to_string(llama_n_ctx(ctx)) +
+               " batch=" + std::to_string(llama_n_batch(ctx)) +
+               " ubatch=" + std::to_string(llama_n_ubatch(ctx)) +
+               " threads-auto=" + std::to_string(optimalThreads()) +
+               " flash=on kv=q8_0 (solicitado) llama=" + std::string(llama_version());
+    }
+    return env->NewStringUTF(info.c_str());
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL

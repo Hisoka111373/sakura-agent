@@ -18,6 +18,8 @@ Animación sutil de aparición, sin partículas continuas que gasten batería.
 
 0.7: el avatar existente respira/flota y gira suavemente; pulso al hablar con TTS
 real. Movimientos offline de transformaciones, no Live2D ni nueva ilustración.
+0.10: se añade una capa vectorial propia con parpadeo, mirada, boca y manos; sigue
+siendo dibujo offline en Compose, sin Live2D ni sincronización fonética real.
 Pausar en segundo plano y permitir desactivar movimiento. Tono kawaii cálido,
 sin infantilización ni perder claridad. Selector Local/En línea y pensamiento
 Bajo/Alto visible en Chat/Agente, progreso parcial diferenciado de respuesta final.

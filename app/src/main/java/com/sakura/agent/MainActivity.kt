@@ -494,7 +494,7 @@ private fun PrivacyPage(vm: SakuraViewModel, confirm: (String,()->Unit)->Unit, o
             if(enabled) confirm("Activar lectura automática de respuestas completas con una voz española LOCAL instalada. Puede oírla quien esté cerca. Solo mientras Sakura está en primer plano. No activa micrófono ni envía texto a una voz en nube; si no hay voz local, muestra aviso. Silencio y segundo plano detienen la voz.") { vm.mascotPreferences(vm.kawaii,vm.mascotMotion,true) }
             else vm.mascotPreferences(vm.kawaii,vm.mascotMotion,false)
         },enabled=!vm.busy) }
-        Text("Animación offline de flotación, giro y pulso al hablar; no Live2D ni sincronización real de labios. Puedes desactivarla para ahorrar recursos. Pensamiento Bajo/Alto se elige en Chat/APIs.",fontSize=12.sp)
+        Text("Sakura tiene ojos que parpadean y miran, boca que se mueve al hablar y manos que saludan: animación vectorial offline, no Live2D ni sincronización fonética real. Puedes desactivarla para ahorrar recursos. Pensamiento Bajo/Alto se elige en Chat/APIs.",fontSize=12.sp)
         Text("Credencial de GitHub", color = Pink, fontWeight = FontWeight.Bold)
         Text("${if (vm.hasToken) "Hay un token guardado y cifrado." else "No hay token guardado."} Usa un fine-grained token limitado al repositorio: Contents: read para leer o write para commits. No pegues tokens en el chat.", fontSize = 12.sp)
         OutlinedTextField(value = token, onValueChange = { token = it.take(512) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth(),

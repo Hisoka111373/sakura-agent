@@ -16,6 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +61,10 @@ jobs:
               flags = [x for x in shlex.split(r['command']) if x.startswith('-O')]
               assert flags and flags[-1] == '-O3', f'Native source not optimized: {r["file"]}, {flags}'
           print(f'PASS: {len(native)} native compile commands use effective -O3, including llama/ggml')
+          source = pathlib.Path('app/src/main/cpp/sakura_llm.cpp').read_text()
+          for token in ('LLAMA_FLASH_ATTN_TYPE_ENABLED', 'GGML_TYPE_Q8_0', 'nativeWarmup', 'nativeRuntimeInfo'):
+              assert token in source, f'Missing native optimization: {token}'
+          print('PASS: Flash Attention, Q8_0 KV cache, warm-up and runtime info are present')
           PY
 
       - uses: actions/upload-artifact@v4
@@ -67,3 +73,40 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+      # Only on a push to main: commit the verified APK into apk/ using the
+      # workflow token. The apk/** path ignore and [skip ci] prevent a loop.
+      - name: Publish APK into apk/
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
+          test -n "$VERSION" && test "$VERSION" != "0.0"
+          TARGET="apk/SakuraAgent-${VERSION}-arm64-debug.apk"
+          mkdir -p apk
+          cp app/build/outputs/apk/debug/app-debug.apk "$TARGET"
+          HASH="$(sha256sum "$TARGET" | cut -d' ' -f1)"
+          SIZE="$(stat -c%s "$TARGET")"
+          printf '%s  %s\n' "$HASH" "$TARGET" > apk/SHA256SUMS.txt
+          {
+            echo "# Sakura ${VERSION} — APK publicada por CI"
+            echo
+            echo "Archivo: \`$TARGET\`"
+            echo
+            echo "- Commit de origen: \`${GITHUB_SHA}\`"
+            echo "- CI: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Tamaño: ${SIZE} bytes"
+            echo "- SHA-256: \`$HASH\`"
+            echo
+            echo "Compilada en GitHub Actions con pruebas JVM y verificación nativa en verde."
+            echo "Es una APK debug para ARM64/Android 13+. No hay prueba física ni garantía de rendimiento."
+          } > "apk/BUILD-${VERSION}.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$TARGET" apk/SHA256SUMS.txt "apk/BUILD-${VERSION}.md"
+          if git diff --cached --quiet; then
+            echo "La APK ya estaba publicada; nada que confirmar."
+          else
+            git commit -m "chore: publish Sakura ${VERSION} APK [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

@@ -3,6 +3,7 @@ package com.sakura.agent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -21,7 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-/** Offline avatar transforms, not Live2D/lip sync. Paused off-screen or when disabled. */
+/** Offline avatar with a vector Sakura (blink, gaze, mouth and hands). Paused off-screen or when disabled. */
 @Composable
 internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaking: Boolean) {
     val event = LocalCompanionEvent.current
@@ -55,8 +56,20 @@ internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaki
     val greetingTilt = if(event == "Saludo") wave * 13f else wave * 3f
     val squash = if(event == "Saltito" || event == "Lista") kotlin.math.abs(wave) * 0.06f else 0f
     val density=LocalDensity.current.density
-    Image(painterResource(R.drawable.sakura_avatar),"Sakura: ${if(speaking) "hablando" else if(thinking) "pensando" else "contigo"}",
-        Modifier.size(size).graphicsLayer { translationY=(values.first+hop)*density; translationX=wave*3f*density; rotationZ=values.second+greetingTilt; scaleX=values.third-squash; scaleY=values.third+squash }.clip(CircleShape),contentScale=ContentScale.Crop)
+    Box(Modifier.size(size).graphicsLayer {
+        translationY=(values.first+hop)*density
+        translationX=wave*3f*density
+        rotationZ=values.second+greetingTilt
+        scaleX=values.third-squash
+        scaleY=values.third+squash
+    }.clip(CircleShape)) {
+        if (motion && resumed) {
+            SakuraLiveMascot(size, true, thinking || event == "Pensando", speaking, event)
+        } else {
+            Image(painterResource(R.drawable.sakura_avatar),"Sakura: ${if(speaking) "hablando" else if(thinking) "pensando" else "contigo"}",
+                Modifier.matchParentSize(), contentScale=ContentScale.Crop)
+        }
+    }
 }
 
 @Composable

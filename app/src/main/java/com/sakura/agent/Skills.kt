@@ -25,7 +25,7 @@ object Skills {
         SakuraSkill("Memoria privada", "Memoria"), SakuraSkill("Modelos locales", "Modelos"),
         SakuraSkill("Imagen / video en nube", "Crear"), SakuraSkill("Mensajes revisados", "Mensajes"),
         SakuraSkill("Proveedores de texto", "APIs")
-    ) + AdvancedSkills.entries
+    ) + AdvancedSkills.entries + MegaSkills.entries
     private val matchers by lazy { entries.filter { it.page == "Chat" && it.cues.isNotEmpty() }.associateWith { skill ->
         skill.cues.map { Regex("(?<![a-z0-9])" + Regex.escape(normalized(it)) + "(?![a-z0-9])") }
     } }
@@ -90,6 +90,19 @@ object Skills {
 object ScreenPolicy {
     val packages = linkedMapOf("YouTube" to "com.google.android.youtube", "Chrome" to "com.android.chrome",
         "Firefox" to "org.mozilla.firefox", "Play Store" to "com.android.vending")
+    /** Agent-facing aliases: the model never has to guess an Android package name. */
+    val apps = linkedMapOf(
+        "youtube" to "com.google.android.youtube",
+        "chrome" to "com.android.chrome",
+        "navegador" to "com.android.chrome",
+        "explorador" to "com.android.chrome",
+        "web" to "com.android.chrome",
+        "buscador" to "com.android.chrome",
+        "firefox" to "org.mozilla.firefox",
+        "play store" to "com.android.vending",
+        "tienda" to "com.android.vending",
+        "google play" to "com.android.vending"
+    )
     private val blocked = Regex("send|enviar|pagar|pay|comprar|buy|purchase|delete|borrar|eliminar|install|instalar|permitir|allow|password|contrasena|sign.?in|iniciar sesion|subscribe|suscrib|aceptar|accept|confirm|confirmar|checkout|login|log.?in|cerrar sesion|logout|transfer|autoriz|guardar|save|publicar|publish|post|coment|comment|reply|responder")
     fun safe(label: String, password: Boolean): Boolean = !password && label.isNotBlank() &&
         label.length <= 300 && !blocked.containsMatchIn(Skills.normalized(label))

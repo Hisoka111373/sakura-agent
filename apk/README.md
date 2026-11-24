@@ -1,3 +1,32 @@
+# Sakura 0.11.0 — pendiente de publicación por CI
+
+La versión `0.11.0` (`versionCode 13`) está preparada en el código. Tras la CI en
+`main`, GitHub Actions debe publicar aquí:
+
+- `SakuraAgent-0.11.0-arm64-debug.apk`
+- `SHA256SUMS.txt`
+- `BUILD-0.11.0.md` con commit, ejecución, tamaño y SHA-256 reales
+
+No hay hash hasta que CI termine: no copies ni inventes datos de una APK que no se ha
+compilado. La versión se lee de `versionName` en `app/build.gradle.kts`.
+
+---
+
+# Sakura 0.10.0 — pendiente de publicación por CI
+
+La versión `0.10.0` (`versionCode 12`) está preparada en el código. GitHub Actions
+debe compilarla y publicar aquí, tras pruebas y verificación nativa en verde:
+
+- `SakuraAgent-0.10.0-arm64-debug.apk`
+- `SHA256SUMS.txt`
+- `BUILD-0.10.0.md` con commit, ejecución, tamaño y SHA-256 reales
+
+El workflow usa `secrets.GITHUB_TOKEN`; el commit del bot lleva `[skip ci]` y
+`apk/**` está excluido de los disparadores de CI para evitar bucles. Todavía no hay
+hash: no copies ni inventes datos de una APK que no se ha compilado.
+
+---
+
 # Sakura 0.9.1 — APK verificada
 
 Archivo: `SakuraAgent-0.9.1-arm64-debug.apk`. Versión Android **0.9.1**, versionCode **11**, paquete `com.sakura.agent`. Android 13+ ARM64; APK debug, no versión de tienda.

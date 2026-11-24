@@ -225,7 +225,7 @@ internal fun GithubExtras(vm: SakuraViewModel, owner: String, repo: String, bran
     TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "Ocultar herramientas de repositorio" else "Ramas, commits, archivos nuevos y pull requests") }
     if (expanded) Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Info("No es toda la API de GitHub: incluye operaciones habituales de código. No borra repositorios, cambia permisos, administra secretos ni mezcla PR automáticamente. Contents: write para commits; Pull requests: write para crear PR; Workflows: write para modificar workflows.")
-        Row(Modifier.horizontalScroll(rememberScrollState())) { listOf("Ramas","Commits","Pull requests").forEach { kind ->
+        Row(Modifier.horizontalScroll(rememberScrollState())) { listOf("Ramas","Commits","Pull requests","Issues").forEach { kind ->
             TextButton(enabled=!vm.busy && vm.internetAllowed,onClick={vm.features.listGithub(owner,repo,branch,kind)}) { Text("Listar $kind") }
         } }
         Field("Nueva rama (la rama principal del formulario será la base)",newBranch,{newBranch=it.take(200)},!vm.busy)

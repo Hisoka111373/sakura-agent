@@ -10,9 +10,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +27,10 @@ internal fun StarterModelCard(vm: SakuraViewModel, confirm: (String, () -> Unit)
             Text("Modelo inicial de Sakura", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             Text("Qwen2.5 1.5B Instruct · Q4_K_M · 1.1 GB · Apache 2.0", fontSize = 12.sp)
             Text("GGUF pequeños (0.5B Q4_K_M y 1.5B Q3_K_M) en Centro de modelos; descarga confirmada con SHA-256.", fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = vm.autoDownloadFast, onCheckedChange = { vm.updateAutoDownloadFast(it) }, enabled = !vm.busy)
+                Text("Descargar también modelo rápido 0.5B (+491 MB) al bajar el inicial", fontSize = 12.sp)
+            }
             Text(
                 "No viaja dentro de la APK. Se descarga una vez, se verifica con SHA-256 y se copia al almacenamiento privado. Después puede conversar sin Internet.",
                 fontSize = 12.sp

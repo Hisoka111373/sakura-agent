@@ -69,6 +69,7 @@ class GitHubClient {
             "Ramas" -> "/branches?per_page=50"
             "Commits" -> "/commits?sha=${ref(branch)}&per_page=30"
             "Pull requests" -> "/pulls?state=open&per_page=30"
+            "Issues" -> "/issues?state=open&per_page=30"
             else -> error("Consulta no admitida.")
         }
         val items = request("GET",base(owner,repo)+suffix,token).getJSONArray("items")
@@ -77,6 +78,7 @@ class GitHubClient {
             when (kind) {
                 "Ramas" -> item.getString("name") + " · " + item.getJSONObject("commit").getString("sha")
                 "Commits" -> item.getString("sha") + " · " + item.getJSONObject("commit").getString("message").take(200)
+                "Issues" -> "#${item.getInt("number")} [${item.getString("state")}] ${item.getString("title")}\n${item.getString("html_url")}"
                 else -> "#${item.getInt("number")} ${item.getString("title")}\n${item.getString("html_url") }"
             }
         }

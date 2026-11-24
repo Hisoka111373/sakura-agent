@@ -10,6 +10,43 @@ por PR #7. La0.6 pasó CI43749469074 y se integró por PR #8. Para0.7 consulta s
 PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
 
+## Ampliación 0.11 — edición de GitHub desde el agente y modelo rápido
+
+- **GitHub desde el agente**: `github_edit` lee el SHA, sustituye un fragmento único y
+  abre ANTES/DESPUÉS en el panel; el commit real solo se envía tras tu confirmación.
+  Añadido `github_issues` (lectura) y `Listar Issues` en la pestaña GitHub.
+- **Abrir apps por nombre**: `open_app_named` resuelve alias (`explorador`, `youtube`,
+  `chrome`, `play store`, …) a una allowlist; encadenable con `video_search` o
+  `browser_search`, siempre con una confirmación por acción.
+- **Modelo local preparado**: opción opcional para descargar y verificar por SHA un
+  Qwen2.5 0.5B de respaldo junto al modelo inicial y poder responder rápido sin red.
+  El motor llama.cpp ya está en la APK; el GGUF es autocontenido.
+- **Mascota más viva**: parpadeo doble, mechones que se balancean, rubor y polen
+  flotante, además de ojos/manos/boca de 0.10. Sigue siendo vectorial, no Live2D.
+- **140 skills** y CI con versión derivada de `versionName`. Ver
+  [docs/FEATURES-0.11.0.md](docs/FEATURES-0.11.0.md).
+
+## Ampliación 0.10 — Sakura viva, 136 skills y local acelerado
+
+- **Mascota viva**: ojos que parpadean y miran, boca animada mientras habla y manos
+  que saludan, dibujadas en Compose. Es animación vectorial offline, **no Live2D ni
+  lip-sync real**. Se pausa en segundo plano o al desactivar Movimiento.
+- **136 skills**: 43 nuevas guías locales para agente supervisado, GitHub,
+  rendimiento, mascota, productividad, investigación, creatividad y vida diaria.
+  Ninguna skill ejecuta herramientas por sí sola.
+- **Agente con más atajos supervisados**: `github_tree`, `github_open`,
+  `video_search` y `browser_search`, con validación estricta y confirmación
+  individual. Las escrituras de GitHub siguen revisándose en la pestaña GitHub.
+- **Local más rápido, sin medir aún en móvil**: batch 512, hilos automáticos 2–6,
+  Flash Attention, caché KV Q8_0, `no_perf` y precalentamiento tras cargar. La app
+  muestra los parámetros efectivos al cargar el GGUF.
+- **APK en `apk/`**: CI publica `SakuraAgent-0.10.0-arm64-debug.apk`, su SHA-256 y
+  un informe de build usando `GITHUB_TOKEN` de Actions. Ver
+  [docs/FEATURES-0.10.0.md](docs/FEATURES-0.10.0.md).
+
+**Pendiente**: compilación en GitHub Actions y prueba física. No se afirma mejora de
+latencia hasta medirla en un teléfono ARM64.
+
 ## Ampliación 0.9 — modo local estable y control del teléfono supervisado
 
 - **Arreglo del «se queda pensando»**: presupuesto determinista del prompt local

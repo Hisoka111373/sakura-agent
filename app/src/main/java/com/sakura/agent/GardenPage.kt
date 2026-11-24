@@ -98,9 +98,8 @@ private fun Petals(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun SakuraMascot(modifier: Modifier = Modifier, size: Dp = 72.dp, speaking: Boolean = false) {
-    Box(modifier) { AnimatedMascot(size,LocalMascotMotion.current,speaking,LocalMascotSpeaking.current) }
-
+internal fun SakuraMascot(modifier: Modifier = Modifier, size: Dp = 72.dp, speaking: Boolean = false, thinking: Boolean = false) {
+    Box(modifier) { AnimatedMascot(size, LocalMascotMotion.current, thinking, speaking || LocalMascotSpeaking.current) }
 }
 
 @Composable
@@ -113,7 +112,7 @@ internal fun GardenPage(vm: SakuraViewModel, confirm: (String, () -> Unit) -> Un
         item {
             Card {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SakuraMascot(size = 86.dp, speaking = vm.starterDownloading)
+                    SakuraMascot(size = 86.dp, speaking = vm.starterDownloading, thinking = vm.generating)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("Sakura te escucha", color = SakuraPink, fontWeight = FontWeight.Bold)
                         Text(vm.companionPhrase, color = SakuraAqua, fontSize = 12.sp)

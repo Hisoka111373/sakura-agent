@@ -5,6 +5,8 @@ fun interface NativeProgress { fun onProgress(tokens: Int, text: ByteArray) }
 /** All load/generate/unload calls must use one worker. Cancellation is atomic in JNI. */
 class NativeLlama {
     external fun nativeLoad(modelPath: String)
+    external fun nativeWarmup()
+    external fun nativeRuntimeInfo(): String
     private external fun nativeGenerate(system: ByteArray, roles: Array<String>, texts: Array<ByteArray>, maxTokens: Int, timeoutMs: Long, progress: NativeProgress?): ByteArray
     external fun nativeUnload()
     external fun nativeCancel()
