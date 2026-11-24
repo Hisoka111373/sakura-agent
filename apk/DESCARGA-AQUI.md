@@ -1,10 +1,13 @@
 # APK TERMINADA — DESCARGAR AQUI
 
-Archivo: `sakura.apk` (mismo contenido que `SakuraAgent-0.11.0-arm64-debug.apk`)
+Archivo: `sakura.apk` (mismo contenido que `SakuraAgent-0.12.0-arm64-debug.apk`)
 
-- Tamano: 65422949 bytes (~63 MB)
-- SHA-256: e41b990c141c32e3ea5d780f86d92976baff03ea2abd6c676f345f97fffe2060
-- Android 13+ ARM64
+- Tamano: 82465970 bytes (enlace directo listo para instalar)
+- SHA-256: ad75838d56a25adc1ae4773c9cd3118bd153c18baa79b9e103796e5bb2746579
+- Android 13+ ARM64 · APK debug
 
 Descarga directa:
 https://github.com/Hisoka111373/sakura-agent/raw/main/apk/sakura.apk
+
+Release con asset:
+https://github.com/Hisoka111373/sakura-agent/releases/download/v0.12.0/SakuraAgent-0.12.0-arm64-debug.apk

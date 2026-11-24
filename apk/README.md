@@ -1,3 +1,13 @@
+# Sakura 0.12.0 — APK publicada por CI
+
+Archivo: `SakuraAgent-0.12.0-arm64-debug.apk`; copia estable: `sakura.apk`.
+
+- Tamano: 82465970 bytes
+- SHA-256: `ad75838d56a25adc1ae4773c9cd3118bd153c18baa79b9e103796e5bb2746579`
+- Datos completos: `BUILD-0.12.0.md` y `SHA256SUMS.txt`.
+
+---
+
 # Sakura 0.11.0 — pendiente de publicación por CI
 
 La versión `0.11.0` (`versionCode 13`) está preparada en el código. Tras la CI en
