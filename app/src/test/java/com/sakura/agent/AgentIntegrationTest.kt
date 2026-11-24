@@ -28,6 +28,14 @@ class AgentIntegrationTest {
     @Test fun cloudPreviewUsesSameProtocol() { val body=TextProtocol.payload(TextConfig("Groq","test-model"),listOf(ChatMessage(AgentTools.context("objetivo",listOf("fragmento privado")),false)),AgentTools.prompt); assertTrue(body.toString().contains("fragmento privado")); assertFalse(body.toString().contains("Authorization")); assertEquals(768,body.getInt("max_tokens")) }
     @Test fun encryptedProviderKeysAndFixedEndpoints() { val hosts=mapOf("Groq" to "api.groq.com","OpenRouter" to "openrouter.ai","DeepSeek" to "api.deepseek.com","Mistral" to "api.mistral.ai","xAI" to "api.x.ai","Together" to "api.together.ai","Fireworks" to "api.fireworks.ai"); hosts.forEach { (provider,host) -> val config=TextConfig(provider,"test/model"); assertEquals(host,NetworkPolicy.https(config.url()).host); assertTrue(config.key in NetworkPolicy.credentialKeys) } }
     @Test fun webTextStripsActiveContentAndBoundsOutput() { assertEquals("Hola & adiós",WebText.plain("<script>fetch('secret')</script><style>x</style><!--comment--><p>Hola &amp; adiós</p>")); assertEquals(12000,WebText.plain("x".repeat(20000)).length) }
-    @Test fun parserOversizeRejected() { rejects("a".repeat(25000)); rejects("""{"final":""}""") }
+    @Test fun parserOversizeRejected() { rejects("a".repeat(250000)); rejects("""{"final":""}""") }
+    @Test fun fullSourceFileProposalFitsBoundedParser() {
+        val content = "fun main() { println(\"hola\") }\n".repeat(800)
+        val parsed = ToolCallParser.parse(org.json.JSONObject().put("tool","github_write").put("args",
+            org.json.JSONObject().put("owner","Hisoka111373").put("repo","sakura-agent").put("branch","feature/sakura")
+                .put("path","src/Main.kt").put("content",content).put("message","Sakura: archivo revisado")).toString())
+        assertTrue(parsed is ParsedAction.Call)
+        assertEquals(content, (parsed as ParsedAction.Call).args["content"])
+    }
     @Test fun downloadStillAllowsAuthorizedPublicFile() { assertEquals("example.com",NetworkPolicy.directDownload("https://example.com/authorized.mp4").host) }
 }

@@ -62,9 +62,9 @@ object Skills {
         return SearchTask(kind,query)
     }
     fun searchSummary(query: String, rows: List<SearchResult>): String {
-        if (rows.isEmpty()) return "Brave no devolvió resultados para «$query». Prueba con otras palabras o abre la búsqueda externa."
+        if (rows.isEmpty()) return "La búsqueda no devolvió resultados para «$query». Prueba con otras palabras o abre la búsqueda externa."
         return buildString {
-            append("Resultados de Brave para «$query» (contenido no verificado):\n\n")
+            append("Resultados para «$query» (contenido no verificado):\n\n")
             rows.take(5).forEachIndexed { index, row ->
                 append("${index + 1}. ${row.title}\n${row.url}\n")
                 if (row.description.isNotBlank()) append("${row.description.take(240)}\n")
@@ -73,6 +73,8 @@ object Skills {
             append("No abrí ni descargué estos enlaces. Pídeme resumirlos o ábrelos con revisión.")
         }
     }
+    fun freeSummary(query: String, rows: List<FreeResult>): String = searchSummary(query,
+        rows.map { SearchResult(it.title, it.url, it.snippet) })
     fun searchUrl(kind: String, query: String): String {
         require(NetworkPolicy.text(query,500))
         val q = URLEncoder.encode(query,"UTF-8")

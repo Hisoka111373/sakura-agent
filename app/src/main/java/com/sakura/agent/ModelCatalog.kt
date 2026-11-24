@@ -36,8 +36,48 @@ object ModelCatalog {
         CatalogModel("LTX Video 2B 0.9.8 distilled · FP8", "Video · descarga externa", "Lightricks/LTX-Video",
             "8984fa25007f376c1a299016d0957a37a2f797bb", "ltxv-2b-0.9.8-distilled-fp8.safetensors", 4461695684,
             "d6d8fa8ed3a98346787c2503ac80fb5d7cebcf80e356b79a2ba361fbadf97e15", "Licencia específica LTX (revisar tarjeta)",
-            "Descarga externa: checkpoint sin motor local en Sakura; puede requerir encoder/VAE y otro runtime. 8 GB no garantiza viabilidad.")
+            "Descarga externa: checkpoint sin motor local en Sakura; puede requerir encoder/VAE y otro runtime. 8 GB no garantiza viabilidad."),
+        // 0.12.0: catálogo ampliado con archivos públicos verificados por la API de Hugging Face.
+        CatalogModel("Openjourney 1.5 · checkpoint ligero", "Imagen · descarga externa", "prompthero/openjourney",
+            "f4572661b028c732b2b97c8fbdc32fa5db3afe03", "model.safetensors", 492265879,
+            "40a255878ab9382df07730db8d1719512fe60a61c931288d152511ab6443b4af", "CreativeML Open RAIL-M",
+            "Descarga externa: checkpoint SD 1.5 de ~492 MB. Necesita un motor local de difusión distinto; Sakura solo descarga y verifica."),
+        CatalogModel("Segmind SSD-1B · checkpoint", "Imagen · descarga externa", "segmind/SSD-1B",
+            "60987f37e94cd59c36b1cba832b9f97b57395a10", "SSD-1B.safetensors", 4465671506,
+            "0bf1ce6b065a6b969ab02dc8e8fa21eb20ee189b10935c49ce68c77a7e432c1c", "Apache 2.0 (revisar tarjeta)",
+            "Descarga externa: modelo destilado (~4.47 GB) para un motor local distinto; no se ejecuta dentro de Sakura."),
+        CatalogModel("SD Turbo · checkpoint", "Imagen · descarga externa", "stabilityai/sd-turbo",
+            "b261bac6fd2cf515557d5d0707481eafa0485ec2", "sd_turbo.safetensors", 5214561328,
+            "3f067a1b943cf162f2b8f8588f6cf5824bd5b4c7d1d88d87164b9ca123616549", "Licencia Stability (revisar tarjeta)",
+            "Descarga externa: ~5.21 GB. Antes no se podía bajar porque el límite era de 5 GB; ahora es de 16 GB. Necesitas espacio libre y un motor local distinto."),
+        CatalogModel("LTX 2B 0.9.6 distilled · checkpoint", "Video · descarga externa", "Lightricks/LTX-Video",
+            "8984fa25007f376c1a299016d0957a37a2f797bb", "ltxv-2b-0.9.6-distilled-04-25.safetensors", 6340744028,
+            "94891bd4bd08de30d484befbfc54fdcffe6d1596a131baad700b9baa5e1de86b", "Licencia específica LTX (revisar tarjeta)",
+            "Descarga externa: checkpoint de vídeo ~6.34 GB. Descarga verificada; la generación requiere un motor local distinto y más memoria."),
+        CatalogModel("LTX spatial upscaler 0.9.8", "Video · descarga externa", "Lightricks/LTX-Video",
+            "8984fa25007f376c1a299016d0957a37a2f797bb", "ltxv-spatial-upscaler-0.9.8.safetensors", 505024432,
+            "5b076031c6f860db9037a54f3bb819f10bfb5532ea26a6d30062292428a0c208", "Licencia específica LTX (revisar tarjeta)",
+            "Descarga externa: módulo de mejora espacial para vídeo (~505 MB) de otro motor local; no es texto a vídeo independiente."),
+        CatalogModel("LTX temporal upscaler 0.9.8", "Video · descarga externa", "Lightricks/LTX-Video",
+            "8984fa25007f376c1a299016d0957a37a2f797bb", "ltxv-temporal-upscaler-0.9.8.safetensors", 523894768,
+            "92ee7c34a06007da23e83c9c2db1ea74344d95a3b8baa6a3a1d18a0aa20a39b8", "Licencia específica LTX (revisar tarjeta)",
+            "Descarga externa: módulo de mejora temporal para vídeo (~524 MB) de otro motor local; no es texto a vídeo independiente."),
+        CatalogModel("Whisper Tiny · audio local (ggml)", "Audio · descarga externa", "ggerganov/whisper.cpp",
+            "5359861c739e955e79d9a303bcbc70fb988958b1", "ggml-tiny.bin", 77691713,
+            "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21", "MIT",
+            "Descarga externa: transcripción de voz de ~78 MB para whisper.cpp u otro motor local compatible. Sakura no incluye motor Whisper; solo descarga y verifica."),
+        CatalogModel("Whisper Tiny English Q5 · audio local", "Audio · descarga externa", "ggerganov/whisper.cpp",
+            "5359861c739e955e79d9a303bcbc70fb988958b1", "ggml-tiny.en-q5_1.bin", 32166155,
+            "c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b", "MIT",
+            "Descarga externa: solo inglés, ~32 MB. Descarga verificada para un motor local compatible; no se ejecuta en Sakura."),
+        CatalogModel("Whisper Base · audio local (ggml)", "Audio · descarga externa", "ggerganov/whisper.cpp",
+            "5359861c739e955e79d9a303bcbc70fb988958b1", "ggml-base.bin", 147951465,
+            "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", "MIT",
+            "Descarga externa: modelo multilingüe de ~148 MB para whisper.cpp. Requiere otro motor local y su propia licencia/uso.")
     )
+    fun visual(): List<CatalogModel> = entries.filter { it.category.startsWith("Imagen") || it.category.startsWith("Video") }
+    fun audio(): List<CatalogModel> = entries.filter { it.category.startsWith("Audio") }
+    fun chat(): List<CatalogModel> = entries.filter { it.category == "Chat" }
 }
 
 /** First-run model: downloaded once by the app, verified, then kept private. Never bundled in the APK. */

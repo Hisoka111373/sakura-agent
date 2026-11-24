@@ -12,7 +12,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -31,8 +32,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +95,11 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
     val chooseModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::importModel) }
     val chooseCode = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::importSource) }
     val chooseApk = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::inspectApk) }
+    val chooseAttachments = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        if (uris.size > 4) vm.notice("Máximo 4 adjuntos por mensaje; se tomaron los 4 primeros.")
+        vm.attachFiles(uris.take(4))
+    }
     val store = remember(context) { PrivateStore(context.applicationContext) }
     var phoneFolder by remember { mutableStateOf(store.read(PHONE_FOLDER_KEY)) }
     val chooseFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -149,7 +153,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                             voice.dictate(vm.internetAllowed)
                         else audioPermission.launch(Manifest.permission.RECORD_AUDIO)
-                    }, { voice.stop(); vm.send() }, confirm)
+                    }, { voice.stop(); vm.send() }, { chooseAttachments.launch("*/*") }, confirm)
                     "Memoria" -> MemoryPage(vm, confirm)
                     "Modelos" -> ModelsPage(vm, { chooseModel.launch(arrayOf("*/*")) }, confirm)
                     "Herramientas" -> ToolsPage(vm, { chooseCode.launch(arrayOf("*/*")) }, { chooseApk.launch(arrayOf("*/*")) }, confirm)
@@ -207,7 +211,7 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
 
 @Composable
 private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, speak: (String) -> Unit, dictate: () -> Unit, send: () -> Unit,
-    confirm: (String, () -> Unit) -> Unit) {
+    attach: () -> Unit, confirm: (String, () -> Unit) -> Unit) {
     var options by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf(false) }
@@ -233,8 +237,17 @@ private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, 
         if(vm.skills.config.provider=="Local" && vm.loadedModel==null) TextButton(onClick={vm.page="Modelos"}) { Text("Carga un modelo local en Modelos") }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout=true,verticalArrangement=Arrangement.spacedBy(10.dp)) {
             if(vm.partialReply.isNotEmpty()) item { Card { SelectionContainer { Text(vm.partialReply,Modifier.padding(12.dp)) } } }
-            items(vm.messages.asReversed()) { message -> MessageBubble(message) { speak(message.text) } }
+            items(vm.messages.asReversed()) { message -> MessageBubble(vm, message) { speak(message.text) } }
             if(vm.messages.isEmpty()) item { Text("Hola, soy Sakura. ¿En qué te ayudo?",color=Aqua,modifier=Modifier.padding(12.dp)) }
+        }
+        if(vm.attachments.isNotEmpty()) {
+            Text("Adjuntos que se incluirán en la próxima respuesta (texto leído en el teléfono):", color=Aqua, fontSize=12.sp)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                vm.attachments.forEachIndexed { index, item ->
+                    FilterChip(selected=true,onClick={},enabled=false,label={Text("${item.kind}: ${item.name}".take(48))},
+                        trailingIcon={ IconButton(enabled=!vm.busy,onClick={vm.removeAttachment(index)}) { Icon(Icons.Default.Close,"Quitar ${item.name}",tint=Pink) } })
+                }
+            }
         }
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
             if(vm.generating) TextButton(onClick=vm::cancelGeneration) { Text("Detener") }
@@ -242,8 +255,9 @@ private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, 
             if(CompanionPolicy.canContinue(vm.messages,vm.draft)) TextButton(enabled=!vm.busy,onClick=vm::continueAnswer) { Text("Continuar") }
         }
         Row(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(20.dp)).padding(6.dp),verticalAlignment=Alignment.CenterVertically) {
+            IconButton(enabled=!vm.busy,onClick=attach) { Icon(Icons.Default.AttachFile,"Adjuntar imagen, vídeo, audio o documento",tint=Aqua) }
             IconButton(enabled=!vm.busy,onClick=dictate) { Icon(Icons.Default.Mic,"Dictar",tint=Aqua) }
-            OutlinedTextField(vm.draft,{vm.draft=it},enabled=!vm.busy,modifier=Modifier.weight(1f),placeholder={Text("Escribe tu mensaje")},maxLines=3)
+            OutlinedTextField(vm.draft,{vm.draft=it},enabled=!vm.busy,modifier=Modifier.weight(1f),placeholder={Text("Escribe o pide: busca…, lee GitHub…, descarga Whisper…")},maxLines=3)
             IconButton(enabled=!vm.busy && vm.draft.isNotBlank(),onClick=send) { Icon(Icons.AutoMirrored.Filled.Send,"Enviar",tint=Pink) }
         }
     }
@@ -254,6 +268,11 @@ private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, 
             Text("Bajo: respuesta corta y directa. Alto: más detalle. Las skills guían el texto; las herramientas requieren confirmación.")
             Text("Skill: ${vm.skills.selected()?.name ?: vm.skills.activeSkill}")
             TextButton(onClick={vm.skills.automatic()}) { Text("Skills automáticas") }
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Text("Detectar herramientas desde el chat",Modifier.weight(1f),fontSize=13.sp)
+                Switch(checked=vm.chatAutoTools,enabled=!vm.busy,onCheckedChange={vm.updateChatAutoTools(it)})
+            }
+            Text("Si está activo, frases como «busca…», «lee README.md de…» o «descarga Whisper» abren una revisión antes de cualquier red o escritura.",fontSize=12.sp)
             TextButton(onClick={vm.playfulCompanion()}) { Text("¡Saltito!") }
             Text(vm.companionPhrase)
             TextButton(onClick={vm.mascotPreferences(vm.kawaii,!vm.mascotMotion,vm.autoVoice)}) { Text(if(vm.mascotMotion) "Desactivar movimiento" else "Activar movimiento") }
@@ -263,9 +282,9 @@ private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, 
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage, onSpeak: () -> Unit) {
+private fun MessageBubble(vm: SakuraViewModel, message: ChatMessage, onSpeak: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromSakura) Arrangement.Start else Arrangement.End, verticalAlignment = Alignment.Bottom) {
-        if (message.fromSakura) Image(painterResource(R.drawable.sakura_avatar),"Sakura",Modifier.padding(end=6.dp).size(30.dp),contentScale=ContentScale.Crop)
+        if (message.fromSakura) AnimatedMascot(30.dp,vm.mascotMotion,false,false)
         Card(Modifier.fillMaxWidth(if (message.fromSakura) 0.82f else 0.92f), colors = CardDefaults.cardColors(containerColor = if (message.fromSakura) Panel else Pink.copy(alpha = 0.18f)), shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 SelectionContainer(Modifier.weight(1f)) { Text(message.text, color = if (message.fromSakura) Ink else Pink, fontSize = 15.sp) }

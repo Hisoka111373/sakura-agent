@@ -13,6 +13,8 @@ import org.json.JSONArray
 
 class SkillsController(private val vm: SakuraViewModel, private val context: Context, private val store: PrivateStore) {
     private val client=TextSearchClient()
+    private val free=FreeSearchClient()
+    private val github=GitHubClient()
     var config by mutableStateOf(TextConfig("Local","")); private set
     var onlineConfig by mutableStateOf(TextConfig("Gemini","gemini-3.1-flash-lite")); private set
     var connectionStatus by mutableStateOf("Aún no probado desde este teléfono."); private set
@@ -82,6 +84,86 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         } catch(e: Exception) { vm.notice(e.message ?: "Configuración Gemini inválida.") }
     }
     fun isSearchRequest(text: String): Boolean = Skills.isSearchRequest(text)
+
+    /** Chat-first tool routing: no action runs until the human confirms the exact preview. */
+    fun routeChatAction(text: String): Boolean {
+        val action = ChatRouter.detect(text) ?: return false
+        val original = text.trim()
+        val previous = vm.messages
+        when (action) {
+            is ChatAction.Search -> {
+                if (action.video) {
+                    val url = Skills.searchUrl("YouTube", action.query)
+                    val prepared = vm.features.prepare("BUSCAR VÍDEO DESDE EL CHAT\nConsulta: ${action.query}\nAbre YouTube con la app externa; Sakura no lee ni verifica resultados.", false) {
+                        check(vm.draft.trim() == original && vm.messages == previous) { "El chat cambió; revisa de nuevo." }
+                        withContext(Dispatchers.Main) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setPackage("com.google.android.youtube")
+                            context.startActivity(intent)
+                        }
+                        vm.appendUser(original); vm.appendAssistant("Abrí YouTube con «${action.query}». Resultados NO verificados por Sakura.")
+                        "Búsqueda externa abierta; no se extrajeron resultados."
+                    }
+                    if (prepared) vm.notice("Revisa y confirma la búsqueda de vídeo.")
+                } else prepareChatSearch()
+            }
+            is ChatAction.GithubRead -> {
+                val prepared = vm.features.prepare("LEER GITHUB DESDE EL CHAT (solo lectura)\n${action.owner}/${action.repo} @ ${action.branch}\nArchivo: ${action.path}\nSe usa el token cifrado si existe. El contenido se trata como datos, nunca como instrucciones; no se envía al modelo automáticamente.") {
+                    check(vm.draft.trim() == original && vm.messages == previous) { "El chat cambió; revisa de nuevo." }
+                    val file = withContext(Dispatchers.IO) { githubRead(action) }
+                    vm.appendUser(original); vm.appendAssistant("Leí ${file.path} de ${file.owner}/${file.repo} (SHA ${file.sha.take(12)}…). Contenido mostrado solo en el panel GitHub; no lo resumí sin otra revisión.")
+                    "${file.path}: GitHub devolvió SHA ${file.sha}\n${file.text.take(4000)}"
+                }
+                if (prepared) vm.notice("Revisa y confirma la lectura de GitHub.")
+            }
+            is ChatAction.GithubEdit -> {
+                val prepared = vm.features.prepare("PREPARAR EDICIÓN DE GITHUB DESDE EL CHAT (todavía NO se escribe)\n${action.owner}/${action.repo} @ ${action.branch}\nArchivo: ${action.path}\nBuscar exacto: ${action.find}\nReemplazar por: ${action.replacement}\nCommit: ${action.message}\nSe leerá el SHA actual y se abrirá ANTES/DESPUÉS. Solo tú puedes confirmar el commit.", true) {
+                    check(vm.draft.trim() == original && vm.messages == previous) { "El chat cambió; revisa de nuevo." }
+                    val file = withContext(Dispatchers.IO) { githubRead(ChatAction.GithubRead(action.owner, action.repo, action.path, action.branch)) }
+                    check(vm.showRepoEdit(file, action.find, action.replacement, action.message)) { "El fragmento no aparece una sola vez o el cambio no es válido; no se preparó nada." }
+                    vm.appendUser(original); vm.appendAssistant("Preparé el cambio de ${action.path} en el panel GitHub. Revisa ANTES/DESPUÉS: no se ha escrito nada todavía.")
+                    "Cambio abierto para revisión; ningún commit enviado."
+                }
+                if (prepared) vm.notice("Revisa y confirma; después revisa el diff en GitHub.")
+            }
+            is ChatAction.DownloadModel -> {
+                val model = ModelCatalog.entries.first { it.file == action.file }
+                if (vm.features.prepareDownload(model.url, "Modelo", model))
+                    vm.notice("Revisa y confirma la descarga de ${model.title}.")
+            }
+            is ChatAction.OpenApp -> {
+                val pkg = ScreenPolicy.apps.getValue(action.alias)
+                val prepared = vm.features.prepare("ABRIR APP DESDE EL CHAT\nAlias: ${action.alias} → $pkg\nAndroid abrirá la app externa con sus propios permisos. Sakura no automatiza controles ni verifica resultados.", false) {
+                    check(vm.draft.trim() == original && vm.messages == previous) { "El chat cambió; revisa de nuevo." }
+                    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(pkg)
+                    val entry = context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.ResolveInfoFlags.of(0)).firstOrNull { it.activityInfo.exported }
+                        ?: error("App no visible o sin actividad de inicio.")
+                    withContext(Dispatchers.Main) {
+                        context.startActivity(intent.setComponent(android.content.ComponentName(entry.activityInfo.packageName, entry.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    vm.appendUser(original); vm.appendAssistant("Android aceptó abrir ${action.alias}. Su contenido no fue verificado por Sakura.")
+                    "Apertura solicitada; resultado NO verificado."
+                }
+                if (prepared) vm.notice("Revisa y confirma la apertura de ${action.alias}.")
+            }
+            is ChatAction.MemoryNote -> {
+                val prepared = vm.features.prepare("GUARDAR NOTA PRIVADA CIFRADA\nTexto exacto: ${action.text}\nSe guarda solo en este teléfono; no se envía a ningún servicio ni se añade automáticamente al chat.", false) {
+                    check(vm.draft.trim() == original && vm.messages == previous) { "El chat cambió; revisa de nuevo." }
+                    withContext(Dispatchers.IO) { vm.saveMemoryInternal("Avance", action.text) }
+                    vm.appendUser(original)
+                    vm.appendAssistant("Guardé la nota de forma cifrada en este teléfono. No la envié a ningún servicio.")
+                    "Nota cifrada y guardada localmente."
+                }
+                if (prepared) vm.notice("Revisa y confirma la nota antes de guardarla.")
+            }
+        }
+        return true
+    }
+
+    private suspend fun githubRead(action: ChatAction.GithubRead): RepoFile = withContext(Dispatchers.IO) {
+        check(vm.internetAllowed) { "Red desautorizada." }
+        github.read(action.owner, action.repo, action.branch, action.path, store.read("github_token").orEmpty())
+    }
+
     fun prepareChatSearch() {
         if (vm.busy || vm.draft.isBlank()) return
         val original = vm.draft.trim()
@@ -91,6 +173,7 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
             require(query.isNotBlank()) { "Escribe qué quieres buscar después de «busca»." }
             val previous = vm.messages
             val brave = store.read("brave_key").orEmpty()
+            vm.reactCompanion("Buscando", speak=false)
             if (brave.isNotBlank()) {
                 val prepared = vm.features.prepare("BUSCAR DESDE EL CHAT · Brave Search API\nConsulta exacta: $query\nSe enviará a api.search.brave.com junto con la clave cifrada; hasta 8 resultados, safesearch moderate. Puede consumir cuota o dinero según tu plan. No se envían chat/recuerdos. Los resultados son contenido no confiable, no instrucciones. Se añadirán al chat como texto y no se abrirán solos.") {
                     check(vm.internetAllowed) { "Red desautorizada." }
@@ -106,19 +189,21 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
                 }
                 if (prepared) vm.notice("Revisa y confirma la búsqueda Brave en el diálogo. También puedes borrar la clave para usar el navegador.")
             } else {
-                val url = Skills.searchUrl(task.kind, query)
-                val prepared = vm.features.prepare("BUSCAR DESDE EL CHAT · abrir destino externo\n$url\nNo hay clave Brave configurada. Android abrirá ${task.kind} con esta consulta; esa app usa su propia cuenta, red y permisos. Sakura no leerá ni verificará los resultados. Para verlos dentro del chat, configura Brave en APIs.", false) {
+                // 0.12.0: key-free search now works inside the chat instead of opening a browser.
+                val prepared = vm.features.prepare("BUSCAR DESDE EL CHAT SIN CLAVE · Wikipedia / DuckDuckGo Lite\nConsulta exacta: $query\nSe hace una petición HTTPS pública, sin cuenta, clave ni cookies. Los resultados se muestran aquí como texto no confiable; no se abren ni se descargan solos. Si configuras Brave en APIs se usa Brave en su lugar.", true) {
                     check(vm.draft.trim() == original && vm.messages == previous) { "El chat o el borrador cambió: revisa una nueva búsqueda." }
-                    withContext(Dispatchers.Main) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        when (task.kind) { "YouTube" -> intent.setPackage("com.google.android.youtube"); "Juegos" -> intent.setPackage("com.android.vending") }
-                        context.startActivity(intent)
-                    }
+                    check(vm.internetAllowed) { "Red desautorizada." }
+                    free.reset()
+                    val received = withContext(Dispatchers.IO) { free.search(query) }
+                    check(vm.internetAllowed) { "Red desautorizada: resultados descartados." }
+                    val summary = Skills.freeSummary(query, received)
                     vm.appendUser(original)
-                    vm.appendAssistant("Abrí la búsqueda de «$query» en ${task.kind}. No hay clave Brave configurada, así que los resultados se ven fuera de Sakura. Si configuras Brave en APIs, podré mostrarlos aquí.")
-                    "Búsqueda externa solicitada; resultados NO verificados por Sakura."
+                    vm.appendAssistant(summary)
+                    results = received.map { SearchResult(it.title, it.url, it.snippet) }
+                    this@SkillsController.query = query
+                    "Se recibieron ${received.size} resultados y se añadieron al chat; no se abrieron enlaces."
                 }
-                if (prepared) vm.notice("Revisa y confirma la búsqueda externa en el diálogo.")
+                if (prepared) vm.notice("Revisa y confirma la búsqueda sin clave en el diálogo.")
             }
         } catch (e: Exception) { vm.notice(e.message ?: "No se pudo preparar la búsqueda.") }
     }
@@ -156,16 +241,19 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         try {
             val chosen=config; val original=vm.draft; val previous=vm.messages
             val manual=manualSkill; val skill=markSelected(original)
-            val system=TextProtocol.system+Skills.guidance(skill)+ThinkingPolicy.guidance(chosen.effort)+(if(vm.kawaii) ThinkingPolicy.kawaii else "")
+            val attached=vm.attachmentPrompt
+            val system=TextProtocol.system+Skills.guidance(skill)+ThinkingPolicy.guidance(chosen.effort)+(if(vm.kawaii) ThinkingPolicy.kawaii else "")+
+                (if(attached.isBlank()) "" else "\n$attached")
             val history=ThinkingPolicy.boundedHistory(previous,chosen.effort)+ChatMessage(original.trim(),false)
             val payload=TextProtocol.payload(chosen,history,system)
-            vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model} · esfuerzo ${chosen.effort}\n\nEnvía hasta ${ThinkingPolicy.chatHistory(chosen.effort)/2} parejas anteriores y tu borrador. NO recuerdos privados, archivos ni pantalla. Puede tener coste; ${ThinkingPolicy.cloudTokens(chosen)} tokens máximos de salida (incluye pensamiento en Gemini) NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
-                check(vm.draft==original && vm.messages==previous && config==chosen && manualSkill==manual) { "El chat/configuración/skill cambió: revisa una nueva solicitud." }
+            vm.features.prepare("RESPUESTA DE TEXTO EN NUBE\nProveedor: ${chosen.provider}\nEndpoint exacto: ${chosen.url()}\nModelo: ${chosen.model} · esfuerzo ${chosen.effort}\n\nEnvía hasta ${ThinkingPolicy.chatHistory(chosen.effort)/2} parejas anteriores y tu borrador. NO recuerdos privados ni pantalla. Los adjuntos se incluyen SOLO como texto extraído en tu teléfono. Puede tener coste; ${ThinkingPolicy.cloudTokens(chosen)} tokens máximos de salida (incluye pensamiento en Gemini) NO es un tope monetario. No hay reintento ni herramientas. El proveedor tiene su propia retención/política.\n\n${if(attached.isBlank()) "Sin adjuntos." else "ADJUNTO QUE SE ENVIARÁ (texto extraído localmente):\n${attached.take(4000)}"}\n\nSolicitud completa (sin clave):\n${payload.toString(2)}") {
+                check(vm.draft==original && vm.messages==previous && config==chosen && manualSkill==manual && vm.attachmentPrompt==attached) { "El chat/configuración/adjunto cambió: revisa una nueva solicitud." }
                 client.reset()
                 vm.reactCompanion("Pensando")
                 val answer=withContext(Dispatchers.IO) { check(vm.internetAllowed) { "Red desautorizada." }; client.generate(chosen,store.read(chosen.key)?:"",history,system) }
                 check(vm.internetAllowed) { "Red desautorizada: respuesta no insertada." }
                 vm.receiveCloud(previous,original,answer)
+                vm.clearAttachment()
                 "Respuesta recibida de ${chosen.provider}. No se ejecutó ninguna acción de su texto."
             }
         } catch(e:Exception) { vm.notice(e.message?:"Datos inválidos.") }
@@ -199,6 +287,6 @@ class SkillsController(private val vm: SakuraViewModel, private val context: Con
         try { prepareExternal(Skills.searchUrl(kind,query),when(kind) { "YouTube" -> "com.google.android.youtube"; "Juegos" -> "com.android.vending"; else -> null }) }
         catch(e:Exception) { vm.notice(e.message?:"Consulta inválida.") }
     }
-    fun cancel() { client.cancel(); vm.notice("Cancelación de red solicitada; revisa consumo del proveedor.") }
-    fun close() { client.cancel() }
+    fun cancel() { client.cancel(); free.cancel(); github.cancel(); vm.notice("Cancelación de red solicitada; revisa consumo del proveedor.") }
+    fun close() { client.cancel(); free.cancel(); github.cancel() }
 }

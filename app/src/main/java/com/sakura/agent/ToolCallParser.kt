@@ -3,7 +3,7 @@ package com.sakura.agent
 /** Strict JSON subset: objects and strings only, no duplicates/coercion/trailing prose. */
 object ToolCallParser {
     fun parse(raw: String): ParsedAction {
-        require(raw.toByteArray(Charsets.UTF_8).size <= 24*1024) { "Propuesta demasiado grande." }
+        require(raw.toByteArray(Charsets.UTF_8).size <= 200*1024) { "Propuesta demasiado grande." }
         val text = raw.trim()
         require(text.isNotEmpty())
         if (!text.startsWith("{")) {
@@ -25,10 +25,10 @@ object ToolCallParser {
         val values = args.entries.associate { (key,value) ->
             require(key is String && key.matches(Regex("[a-z][a-z0-9_]{0,39}")))
             require(listOf("token","key","secret","password","credential","cookie").none { it in key }) { "No se aceptan credenciales." }
-            require(value is String && value.length <= 4096 && value.none { it.code < 32 && it != '\n' && it != '\t' }) { "Argumentos deben ser texto acotado." }
+            require(value is String && value.length <= 70000 && value.none { it.code < 32 && it != '\n' && it != '\t' }) { "Argumentos deben ser texto acotado." }
             key to value
         }
-        require(values.values.sumOf { it.length } <= 16384)
+        require(values.values.sumOf { it.length } <= 160000)
         return ParsedAction.Call(name,values).also(AgentTools::validate)
     }
 

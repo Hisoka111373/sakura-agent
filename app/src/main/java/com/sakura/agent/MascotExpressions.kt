@@ -18,6 +18,8 @@ object MascotExpressions {
         "Lista" -> "contenta"
         "Pausa" -> "en pausa"
         "Error" -> "preocupada"
+        "Buscando" -> "buscando"
+        "Leyendo" -> "leyendo"
         else -> "contigo"
     }
 

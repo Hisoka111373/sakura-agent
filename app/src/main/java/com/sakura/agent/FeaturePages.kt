@@ -57,7 +57,7 @@ internal fun DownloadsPage(vm: SakuraViewModel, export: (DownloadedFile) -> Unit
         } }
         item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("Descargar imagen, audio o video por URL",fontWeight=FontWeight.Bold)
-            Info("Solo enlaces HTTPS directos a archivos públicos que tengas permiso de descargar. Sin buscar automáticamente, entrar a cuentas, extraer de YouTube, eludir DRM ni descargar listas HLS. Máximo 512 MiB por archivo; datos privados en Sakura hasta que exportes.")
+            Info("Solo enlaces HTTPS directos a archivos públicos que tengas permiso de descargar. Sin buscar automáticamente, entrar a cuentas, extraer de YouTube, eludir DRM ni descargar listas HLS. Máximo 512 MiB por archivo suelto; los modelos verificados del catálogo tienen límite de 16 GB. Datos privados en Sakura hasta que exportes.")
             Row { listOf("Imagen","Video","Audio").forEach { choice -> FilterChip(kind==choice,{kind=choice},label={Text(choice)},modifier=Modifier.padding(end=6.dp)) } }
             Field("URL directa HTTPS",url,{url=it.take(4096)},!vm.busy)
             Button(enabled=!vm.busy && vm.internetAllowed && url.isNotBlank(),onClick={vm.features.prepareDownload(url.trim(),kind)}) { Text("Revisar descarga…") }

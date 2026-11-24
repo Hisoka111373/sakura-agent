@@ -39,7 +39,7 @@ internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaki
         gesture.snapTo(0f)
         val fresh = sequence != playedSequence
         playedSequence = sequence
-        if(fresh && motion && resumed && event in listOf("Saludo", "Saltito", "Lista")) {
+        if(fresh && motion && resumed && event in listOf("Saludo", "Saltito", "Lista", "Buscando", "Leyendo")) {
             gesture.animateTo(1f,tween(1200,easing=LinearEasing))
             gesture.snapTo(0f)
         }

@@ -52,8 +52,13 @@ class DownloadClient {
         val cap = if (kind == "Modelo") {
             if (chatModel) AgentPolicy.MAX_MODEL_BYTES else NetworkPolicy.MAX_VISUAL_MODEL_BYTES
         } else NetworkPolicy.MAX_MEDIA_BYTES
-        val limit = minOf(cap, targetDir.usableSpace - reserve)
-        require(limit > 0 && (model == null || model.bytes <= limit)) { "Espacio insuficiente o archivo por encima del límite." }
+        val available = targetDir.usableSpace - reserve
+        val limit = minOf(cap, available)
+        require(limit > 0 && (model == null || model.bytes <= limit)) {
+            if (model != null)
+                "Espacio insuficiente: este modelo necesita ${model.bytes / (1024 * 1024)} MiB libres más ${reserve / (1024 * 1024)} MiB de margen. Disponible: ${maxOf(0L, available) / (1024 * 1024)} MiB. Límite de categoría: ${cap / (1024 * 1024)} MiB."
+            else "Espacio insuficiente o archivo por encima del límite."
+        }
         val prefix = UUID.randomUUID().toString() + "_"
         val temporary = File(targetDir, prefix + "download.part")
         val started = System.nanoTime()

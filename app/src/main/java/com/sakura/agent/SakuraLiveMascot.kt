@@ -129,6 +129,22 @@ private fun DrawScope.drawSakura(s: Float, phase: Float, thinking: Boolean, spea
             center = Offset(cx + cos(a) * orbit, cy + sin(a) * orbit * 0.86f))
     }
 
+    // Same Sakura, different focus: a small lens when searching, a page when reading an attachment.
+    when (event) {
+        "Buscando" -> {
+            val lens = Offset(cx - r * 0.86f, cy - r * 0.80f)
+            drawCircle(Color.White, radius = s * 0.065f, center = lens, style = Stroke(width = s * 0.018f), alpha = 0.90f)
+            drawLine(Color.White, Offset(lens.x + s * 0.045f, lens.y + s * 0.045f),
+                Offset(lens.x + s * 0.085f, lens.y + s * 0.085f), strokeWidth = s * 0.022f, alpha = 0.90f)
+        }
+        "Leyendo" -> {
+            val page = Offset(cx - r * 0.98f, cy - r * 0.86f)
+            drawRect(Color.White, topLeft = page, size = Size(s * 0.11f, s * 0.15f), alpha = 0.88f)
+            repeat(3) { i -> drawLine(Dress, Offset(page.x + s * 0.02f, page.y + s * (0.04f + i * 0.03f)),
+                Offset(page.x + s * 0.09f, page.y + s * (0.04f + i * 0.03f)), strokeWidth = s * 0.008f) }
+        }
+    }
+
     drawBlossom(cx + r * 0.82f, cy - r * 0.78f, s * 0.055f)
 }
 

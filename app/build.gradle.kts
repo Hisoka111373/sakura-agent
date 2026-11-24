@@ -17,8 +17,8 @@ android {
         applicationId = "com.sakura.agent"
         minSdk = 33
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.11.0"
+        versionCode = 14
+        versionName = "0.12.0"
 
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
@@ -52,6 +52,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0") // DNS validation is bound to the actual download connection.
+    implementation("com.google.mlkit:text-recognition:16.0.1") // On-device OCR for attached images, PDFs and video frames.
+    implementation("com.google.android.gms:play-services-tasks:18.2.0") // Tasks.await used by the local OCR reader.
+    implementation("androidx.exifinterface:exifinterface:1.4.1") // EXIF metadata for attached photos.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303") // Real JSON implementation for pure JVM plan tests.
     implementation("androidx.compose.ui:ui")

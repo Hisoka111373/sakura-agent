@@ -61,9 +61,8 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         pending = FeatureConfirmation(preview,network,perform)
         return true
     }
-    private fun validate(block: () -> Unit) {
-        try { block() } catch (e: Exception) { vm.notice(e.message ?: "Datos inválidos.") }
-    }
+    private fun validate(block: () -> Unit): Boolean =
+        try { block(); true } catch (e: Exception) { vm.notice(e.message ?: "Datos inválidos."); false }
     fun confirm() {
         val action = pending ?: return
         if (vm.busy) return
@@ -94,14 +93,19 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         vm.notice("Configuración guardada localmente. No se ha probado ni conectado el servicio.")
     }
 
-    fun prepareDownload(url: String, kind: String, model: CatalogModel? = null, expectedHash: String? = null) = validate {
+    fun prepareDownload(url: String, kind: String, model: CatalogModel? = null, expectedHash: String? = null): Boolean {
+        var ready = false
+        validate {
         val uri = NetworkPolicy.directDownload(url)
         require(kind in listOf("Imagen","Video","Audio","Modelo") && (kind != "Modelo" || model in ModelCatalog.entries ||
             NetworkPolicy.ggufHash(expectedHash.orEmpty()) && uri.path.endsWith(".gguf",true)))
-        val details = if (model != null) "${model.title}\n${model.bytes} bytes\nLicencia: ${model.license}\n${model.warning}\nSHA-256 esperado: ${model.sha256}" else if (kind == "Modelo")
+        val details = if (model != null) {
+            val free = File(if (model.category == "Chat") LocalFiles.modelDir(context) else downloads.dir(context)).usableSpace / (1024 * 1024)
+            "${model.title}\n${model.category} · ${model.bytes} bytes\nLicencia: ${model.license}\n${model.warning}\nSHA-256 esperado: ${model.sha256}\nEspacio libre actual: $free MiB (se reservan 256 MiB de margen)."
+        } else if (kind == "Modelo")
             "GGUF personalizado · máximo ${AgentPolicy.MAX_MODEL_BYTES} bytes.\nSHA-256 esperado: $expectedHash\nObtén el hash del editor por una fuente independiente: un hash inventado por la IA no demuestra autenticidad. Revisa origen y licencia. Cabecera/hash no garantizan seguridad ni compatibilidad."
-            else "$kind · límite 512 MiB. URL directa, no página web, YouTube, HLS, DRM ni sesión privada."
-        prepare("DESCARGAR por Internet:\n$url\n$details\nSe permiten hasta 5 redirecciones a HTTPS público sin cookies ni tokens. Guardado privado, no ejecutado. Puede consumir datos y varios GB de espacio. Confirma que tienes derecho a descargarlo.") {
+            else "$kind · límite 512 MiB por archivo suelto (los modelos del catálogo pueden llegar a 16 GB). URL directa, no página web, YouTube, HLS, DRM ni sesión privada."
+        ready = prepare("DESCARGAR por Internet:\n$url\n$details\nSe permiten hasta 5 redirecciones a HTTPS público sin cookies ni tokens. Guardado privado, no ejecutado. Puede consumir datos y varios GB de espacio. Confirma que tienes derecho a descargarlo.") {
             downloads.reset(); downloading = true; transfer = "Iniciando descarga…"
             try {
                 val result = withContext(Dispatchers.IO) {
@@ -114,6 +118,8 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
                 "Archivo guardado: ${result.file.name.substringAfter('_')}\n${result.file.length()} bytes\nSHA-256: ${result.sha256}\n${if (model?.category == "Chat" || kind == "Modelo" && model == null) "Importado en Modelos; cargar requiere otra confirmación." else "Guardado en Descargas. No se ha ejecutado ni validado su seguridad."}"
             } finally { downloading = false }
         }
+        }
+        return ready
     }
     /** First-run download bypasses the confirmation dialog but still uses the same SHA/size checks. */
     internal suspend fun downloadStarter(model: CatalogModel, progress: (Long, Long) -> Unit): DownloadResult =

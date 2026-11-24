@@ -122,6 +122,32 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
                     github.reset()
                     withContext(Dispatchers.IO) { check(vm.internetAllowed); github.list(arg("owner"),arg("repo"),"main","Issues",store.read("github_token").orEmpty()) }
                 }
+                "github_write" -> vm.features.prepare("REEMPLAZAR ARCHIVO COMPLETO EN GITHUB (todavía NO se escribe)\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nRuta: ${arg("path")}\nCommit: ${arg("message")}\nContenido nuevo (primeros 2000 caracteres):\n${arg("content").take(2000)}\n\nSe leerá el SHA actual y se abrirá ANTES/DESPUÉS completo en el panel GitHub. Solo tú puedes confirmar el commit; usa una rama de trabajo.", true) {
+                    github.reset()
+                    val file = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.read(arg("owner"),arg("repo"),arg("branch"),arg("path"),store.read("github_token").orEmpty()) }
+                    check(vm.showRepoFull(file,arg("content"),arg("message"))) { "El contenido nuevo supera el límite o no cambia el archivo; no se preparó nada." }
+                    "Archivo ${file.path} leído (SHA ${file.sha}). Reemplazo completo abierto para revisión; NO se ha escrito nada."
+                }
+                "github_create" -> vm.features.prepare("CREAR ARCHIVO NUEVO CON COMMIT REAL\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nRuta: ${arg("path")}\nCommit: ${arg("message")}\nContenido UTF-8 (≤64 KiB):\n${arg("content").take(6000)}\n\nSi el archivo ya existe, GitHub rechazará la petición: nunca sobrescribe implícitamente. Revisa ruta y contenido antes de confirmar.", true) {
+                    github.reset()
+                    val sha = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.createFile(arg("owner"),arg("repo"),arg("branch"),arg("path"),arg("content"),arg("message"),store.read("github_token").orEmpty()) }
+                    "GitHub confirmó commit de creación $sha en ${arg("path")}. Revisa el resultado en la rama indicada."
+                }
+                "github_delete" -> vm.features.prepare("BORRAR ARCHIVO CON COMMIT REAL\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nRuta: ${arg("path")}\nCommit: ${arg("message")}\n\nAl confirmar se leerá el SHA actual y se enviará un único commit de borrado. No se borran el repositorio ni su historial. Si quieres revisar el contenido antes, pide github_open.", true) {
+                    github.reset()
+                    val file = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.read(arg("owner"),arg("repo"),arg("branch"),arg("path"),store.read("github_token").orEmpty()) }
+                    val sha = withContext(Dispatchers.IO) { github.deleteFile(file,arg("message"),store.read("github_token").orEmpty()) }
+                    "GitHub confirmó commit de borrado $sha para ${file.path} (SHA leído ${file.sha}). Historial no alterado."
+                }
+                "github_branch" -> vm.features.prepare("CREAR RAMA DE TRABAJO EN GITHUB\n${arg("owner")}/${arg("repo")}\nDesde: ${arg("from")}\nNueva: ${arg("branch")}\n\nSolo crea una referencia; no cambia archivos ni mezcla código. Requiere permiso Contents: write.", true) {
+                    github.reset()
+                    val sourceSha = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.branchSha(arg("owner"),arg("repo"),arg("from"),store.read("github_token").orEmpty()) }
+                    withContext(Dispatchers.IO) { github.createBranch(arg("owner"),arg("repo"),arg("branch"),sourceSha,store.read("github_token").orEmpty()) }
+                }
+                "github_pr" -> vm.features.prepare("CREAR PULL REQUEST EN GITHUB\n${arg("owner")}/${arg("repo")}\n${arg("head")} → ${arg("base")}\nTítulo: ${arg("title")}\nDescripción:\n${arg("body").take(4000)}\n\nNo mezcla ni aprueba automáticamente. Requiere permiso Pull requests: write.", true) {
+                    github.reset()
+                    withContext(Dispatchers.IO) { check(vm.internetAllowed); github.createPr(arg("owner"),arg("repo"),arg("head"),arg("base"),arg("title"),arg("body"),store.read("github_token").orEmpty()) }
+                }
                 "github_edit" -> vm.features.prepare("PREPARAR EDICIÓN DE GITHUB (todavía NO se escribe)\n${arg("owner")}/${arg("repo")} @ ${arg("branch")}\nRuta: ${arg("path")}\nFragmento exacto a sustituir:\n${arg("find")}\nReemplazo:\n${arg("replacement")}\nCommit propuesto: ${arg("message")}\n\nSe leerá el SHA actual y se abrirá ANTES/DESPUÉS en el panel. Solo si tú confirmas se enviará el commit real. Usa una rama de trabajo.",true) {
                     github.reset()
                     val file = withContext(Dispatchers.IO) { check(vm.internetAllowed); github.read(arg("owner"),arg("repo"),arg("branch"),arg("path"),store.read("github_token").orEmpty()) }

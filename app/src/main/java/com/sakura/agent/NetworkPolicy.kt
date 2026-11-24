@@ -6,7 +6,7 @@ import java.net.URI
 /** Pure validation rules; credentials are never part of downloads or plans. */
 object NetworkPolicy {
     const val MAX_MEDIA_BYTES = 512L * 1024 * 1024
-    const val MAX_VISUAL_MODEL_BYTES = 5_000_000_000L
+    const val MAX_VISUAL_MODEL_BYTES = 16_000_000_000L
     val credentialKeys = setOf("telegram_token", "whatsapp_token", "whatsapp_phone_id", "fal_key",
         "openai_key", "openrouter_key", "groq_key", "deepseek_key", "mistral_key", "xai_key", "together_key", "fireworks_key", "compatible_key", "gemini_key", "anthropic_key", "brave_key")
     fun https(value: String): URI {

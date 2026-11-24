@@ -108,6 +108,12 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var autoDownloadFast by mutableStateOf(false)
         private set
+    var chatAutoTools by mutableStateOf(true)
+        private set
+    var attachments by mutableStateOf<List<AttachmentInfo>>(emptyList())
+        private set
+    /** Local, untrusted text extracted from attachments. Bounded before it reaches a CPU or cloud model. */
+    val attachmentPrompt: String get() = attachments.joinToString("\n\n") { it.prompt }.take(16000)
     val autoSpeak: Boolean get() = autoVoice
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -126,6 +132,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             autoDownloadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_KEY) == "true" }
             autoLoadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_LOAD_KEY) != "false" }
             autoDownloadFast = withContext(Dispatchers.IO) { store.read(StarterModel.FAST_KEY) == "true" }
+            chatAutoTools = withContext(Dispatchers.IO) { store.read("chat_auto_tools") != "false" }
             models = withContext(Dispatchers.IO) { LocalFiles.models(app) }
             features.initialize()
             skills.initialize()
@@ -242,6 +249,31 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         else "El modelo rápido de respaldo no se descargará automáticamente."
     }
 
+    fun updateChatAutoTools(enabled: Boolean) = work("Guardando preferencia de herramientas en el chat…") {
+        withContext(Dispatchers.IO) { store.write("chat_auto_tools", enabled.toString()) }
+        chatAutoTools = enabled
+        status = if (enabled)
+            "El chat detecta intenciones y propone búsquedas, lectura/edición de GitHub, descargas y apertura de apps. Siempre con confirmación."
+        else "El chat responderá solo con texto; puedes usar la página Agente para herramientas."
+    }
+
+    fun attachFile(uri: Uri) = attachFiles(listOf(uri))
+
+    fun attachFiles(uris: List<Uri>) = work("Leyendo adjuntos en el teléfono…") {
+        require(uris.isNotEmpty() && attachments.size + uris.size <= 4) { "Máximo 4 adjuntos por mensaje; quita uno antes de añadir otro." }
+        val read = withContext(Dispatchers.IO) { uris.map { MediaReader.read(app, it) } }
+        attachments = attachments + read
+        reactCompanion("Leyendo", speak=false)
+        status = "${read.size} adjunto(s) leídos en el teléfono: ${read.joinToString(", ") { "${it.name} · ${it.kind}" }}. Se incluirán en la próxima respuesta; al enviarlos se retirarán del borrador."
+    }
+
+    fun clearAttachment() { attachments = emptyList() }
+    fun removeAttachment(index: Int) {
+        if (busy || index !in attachments.indices) return
+        attachments = attachments.filterIndexed { i, _ -> i != index }
+        status = "Adjunto retirado; el archivo original sigue en tu teléfono."
+    }
+
     fun updateAutoSpeak(enabled: Boolean) = work("Guardando preferencia de voz…") {
         withContext(Dispatchers.IO) { store.write("auto_voice", enabled.toString()) }
         autoVoice = enabled
@@ -317,6 +349,14 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         repoFile = file; pendingEdit = PendingEdit(file, updated, message.trim()); page = "GitHub"
         return true
     }
+    /** Full-file replacement proposed by the agent; the same ANTES/DESPUÉS human confirmation applies. */
+    internal fun showRepoFull(file: RepoFile, content: String, message: String): Boolean {
+        if (content.isBlank() || content.toByteArray(Charsets.UTF_8).size > AgentPolicy.MAX_SOURCE_BYTES ||
+            message.isBlank() || message.length > 200 || content == file.text) return false
+        repoFile = file; pendingEdit = PendingEdit(file, content, message.trim()); page = "GitHub"
+        return true
+    }
+
     internal fun receiveCloud(previous: List<ChatMessage>, original: String, answer: String) {
         check(messages == previous && draft == original) { "El borrador cambió; respuesta no insertada." }
         messages = previous + ChatMessage(original.trim(),false) + ChatMessage(answer,true)
@@ -372,13 +412,18 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun addMemory(kind: String, text: String, onSaved: () -> Unit = {}) = work("Guardando recuerdo…") {
+        saveMemoryInternal(kind, text)
+        onSaved()
+    }
+
+    /** Used from an already-confirmed supervised action; keeps the same validation without re-entering the work gate. */
+    internal suspend fun saveMemoryInternal(kind: String, text: String) {
         require(kind in listOf("Preferencia", "Proyecto", "Avance"))
         require(text.isNotBlank() && text.length <= 500) { "Escribe una nota de 1 a 500 caracteres." }
         require(memories.size < 100) { "Límite de 100 notas. Borra algunas antes de añadir más." }
         val next = memories + Memory(UUID.randomUUID().toString(), kind, text.trim())
         withContext(Dispatchers.IO) { store.saveMemories(next) }
         memories = next; status = "Nota cifrada y guardada en el teléfono."
-        onSaved()
     }
 
     fun deleteMemory(id: String) = work("Borrando nota…") {
@@ -418,7 +463,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         status = "GGUF borrado del almacenamiento privado."
     }
 
-    fun clearChat() { if (!busy) { messages = emptyList(); draft = ""; reactCompanion("Saludo", speak=false); status = "Chat borrado. Las notas de memoria no cambian." } }
+    fun clearChat() { if (!busy) { messages = emptyList(); draft = ""; clearAttachment(); reactCompanion("Saludo", speak=false); status = "Chat y adjuntos borrados del borrador. Las notas de memoria no cambian." } }
 
     fun continueAnswer() {
         if(busy || draft.isNotBlank() || !CompanionPolicy.canContinue(messages,draft)) return
@@ -428,17 +473,20 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun send() {
         if (busy || draft.isBlank()) return
-        if (skills.isSearchRequest(draft)) { skills.prepareChatSearch(); return }
+        val text = draft.trim()
+        if (chatAutoTools && skills.routeChatAction(text)) return
+        if (skills.isSearchRequest(text)) { skills.prepareChatSearch(); return }
         if (skills.config.provider != "Local") { skills.prepareChat(); return }
         if (loadedModel == null) { status = "Descarga o carga un GGUF en Modelos. No hay respuestas simuladas."; return }
-        val text = draft.trim()
         if (text.toByteArray(Charsets.UTF_8).size > 24 * 1024) { status = "Mensaje demasiado largo. Envía un fragmento menor."; return }
         val previous = messages
         val effort = skills.config.effort
         val detailed = effort == "Alto"
         val history = LocalChatPolicy.history(previous,text,detailed)
         val skill = skills.markSelected(text)
-        val system = LocalChatPolicy.system(text,skill,memories,detailed)
+        val attached = attachmentPrompt
+        val system = LocalChatPolicy.system(text,skill,memories,detailed) +
+            (if (attached.isBlank()) "" else "\n$attached")
         draft = ""; messages = previous + ChatMessage(text, false)
         work("Sakura está pensando localmente…") {
             engine?.nativeResetCancellation()
@@ -449,6 +497,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
                 val callback = progress()
                 val answer = withContext(nativeWorker) { native().generate(system, history,LocalChatPolicy.outputTokens(text,detailed),ThinkingPolicy.localTimeoutMs(effort),callback) }
                 messages = messages + ChatMessage(answer, true)
+                clearAttachment()
                 reactCompanion("Lista", speak=false)
                 if(autoVoice) pendingSpeech = answer
                 status = "Respuesta local en ${(android.os.SystemClock.elapsedRealtime()-start)/1000.0} s · esfuerzo $effort. Contexto acotado; no es garantía de rendimiento."
