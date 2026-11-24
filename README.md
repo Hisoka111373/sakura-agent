@@ -10,6 +10,25 @@ por PR #7. La0.6 pasó CI43749469074 y se integró por PR #8. Para0.7 consulta s
 PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
 
+## Ampliación 0.12 — chat primero, búsqueda real y programación supervisada
+
+- **Búsqueda desde el chat**: sin clave usa Wikipedia en español y DuckDuckGo Lite como
+  respaldo; con clave Brave conserva Brave. Resultados como texto no confiable, sin
+  apertura automática de enlaces.
+- **Skills automáticas supervisadas**: frases como «busca…», «lee README.md de…»,
+  «cambia X por Y en…», «descarga whisper tiny» o «recuerda…» preparan una acción
+  exacta. Se puede desactivar con «Detectar herramientas desde el chat».
+- **Multimedia adjunto**: hasta 4 archivos por mensaje; lectura local de EXIF, OCR de
+  imágenes/fotogramas, PDF/DOCX y metadatos de audio. Sin subida por defecto y sin
+  motor Whisper incluido.
+- **Catálogo ampliado**: checkpoints de imagen/vídeo y modelos Whisper con SHA-256
+  público; límite visual de 16 GB. Solo se descargan y verifican: Sakura no genera
+  imágenes, vídeo ni transcribe audio con un motor local propio.
+- **GitHub desde el chat**: lectura, árbol, issues, reemplazo exacto, creación,
+  borrado, rama y pull request, siempre con revisión humana. La misma Sakura añade
+  gestos «buscando» y «leyendo»; no hay otra mascota.
+- Detalles y límites: [docs/FEATURES-0.12.0.md](docs/FEATURES-0.12.0.md).
+
 ## Ampliación 0.11 — edición de GitHub desde el agente y modelo rápido
 
 - **GitHub desde el agente**: `github_edit` lee el SHA, sustituye un fragmento único y
