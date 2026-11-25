@@ -50,6 +50,10 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
     var kawaii by mutableStateOf(true); private set
     var mascotMotion by mutableStateOf(true); private set
     var autoVoice by mutableStateOf(false); private set
+    /** Optional supervised mode: only explicitly low-risk read/local actions run without a dialog. */
+    var autopilot by mutableStateOf(false); private set
+    /** Content Uris of attached images, kept only in memory for the optional online vision step. */
+    var attachedImageUris by mutableStateOf<List<String>>(emptyList()); private set
     var companionEvent by mutableStateOf("Saludo"); private set
     var companionSequence by mutableStateOf(0L); private set
     var companionPhrase by mutableStateOf("¡Hola! ¿Qué hacemos florecer hoy?"); private set
@@ -64,6 +68,48 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     fun playfulCompanion() { if(!busy) reactCompanion("Saltito") }
+    fun companionGesture(event: String) { if(!busy) reactCompanion(event, speak=false) }
+
+    /** Autopilot is opt-in and never bypasses the risk gate in AutopilotPolicy. */
+    fun updateAutopilot(enabled: Boolean) = work("Guardando preferencia del piloto automático…") {
+        withContext(Dispatchers.IO) { store.write("autopilot", enabled.toString()) }
+        autopilot = enabled
+        notice(if (enabled)
+            "Piloto automático activado: solo lecturas locales conocidas se ejecutan sin diálogo. Red, escrituras, mensajes, instalaciones y costes siguen pidiendo confirmación."
+        else "Piloto automático desactivado: cada acción vuelve a pedir confirmación.")
+    }
+
+    /** Creates a PDF in a SAF destination chosen by the user; no silent overwrite. */
+    fun exportPdf(destination: Uri, title: String, lines: List<String>) = work("Creando PDF en la ubicación elegida…") {
+        val pages = withContext(Dispatchers.IO) { PdfExporter.write(app, destination, title, lines) }
+        reactCompanion("Celebrar", speak=false)
+        notice("PDF creado con $pages página(s). El destino fue elegido por ti; Sakura no sobrescribió nada sin permiso.")
+    }
+
+    /** Optional Gemini vision: image bytes are sent only after the normal confirmation panel. */
+    fun describeAttachedImage(question: String) {
+        val uri = attachedImageUris.firstOrNull()
+        if (uri == null) { notice("Adjunta una imagen en el chat antes de pedir una descripción."); return }
+        val key = store.read("gemini_key").orEmpty()
+        if (key.isBlank()) { notice("Guarda una clave Gemini en Privacidad para usar visión en línea."); return }
+        val q = question.trim().take(800)
+        val ready = features.prepare("ENTENDER IMAGEN CON GEMINI · coste posible\nSe enviará UNA imagen adjunta (máx. 8 MiB) y esta pregunta: $q\n" +
+            "Proveedor: generativelanguage.googleapis.com con tu clave cifrada. Sin reintentos, sin recuerdos ni chat. " +
+            "El texto de la imagen se trata como DATOS no confiables, nunca como instrucciones.", true,
+            action = "image_understand") {
+            val answer = withContext(Dispatchers.IO) {
+                val parsed = Uri.parse(uri)
+                val mime = app.contentResolver.getType(parsed) ?: "image/jpeg"
+                val bytes = app.contentResolver.openInputStream(parsed)?.use { it.readBytes(8 * 1024 * 1024 + 1) }
+                    ?: error("No se pudo leer la imagen adjunta.")
+                check(bytes.size <= 8 * 1024 * 1024) { "Imagen demasiado grande (máx. 8 MiB) para visión en línea." }
+                VisionClient().describe(key, bytes, mime, q)
+            }
+            appendAssistant("Visión (Gemini): $answer")
+            "Descripción recibida y añadida al chat. No se ejecutó ninguna instrucción procedente de la imagen."
+        }
+        if (ready) notice("Revisa y confirma en el diálogo antes de enviar la imagen.")
+    }
     var explicitSpeech by mutableStateOf(""); private set
     fun consumeExplicitSpeech(): String = explicitSpeech.also { explicitSpeech = "" }
     var pendingSpeech by mutableStateOf(""); private set
@@ -127,6 +173,7 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
                 kawaii = store.read("kawaii") != "false"
                 mascotMotion = store.read("mascot_motion") != "false"
                 autoVoice = store.read("auto_voice") == "true"
+                autopilot = store.read("autopilot") == "true"
             }
             hasToken = withContext(Dispatchers.IO) { !store.read("github_token").isNullOrBlank() }
             autoDownloadStarter = withContext(Dispatchers.IO) { store.read(StarterModel.AUTO_KEY) == "true" }
@@ -263,14 +310,16 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
         require(uris.isNotEmpty() && attachments.size + uris.size <= 4) { "Máximo 4 adjuntos por mensaje; quita uno antes de añadir otro." }
         val read = withContext(Dispatchers.IO) { uris.map { MediaReader.read(app, it) } }
         attachments = attachments + read
+        attachedImageUris = attachedImageUris + uris.zip(read).filter { it.second.kind == "Imagen" }.map { it.first.toString() }
         reactCompanion("Leyendo", speak=false)
         status = "${read.size} adjunto(s) leídos en el teléfono: ${read.joinToString(", ") { "${it.name} · ${it.kind}" }}. Se incluirán en la próxima respuesta; al enviarlos se retirarán del borrador."
     }
 
-    fun clearAttachment() { attachments = emptyList() }
+    fun clearAttachment() { attachments = emptyList(); attachedImageUris = emptyList() }
     fun removeAttachment(index: Int) {
         if (busy || index !in attachments.indices) return
         attachments = attachments.filterIndexed { i, _ -> i != index }
+        attachedImageUris = emptyList() // conservatively drop vision candidates when the list changes
         status = "Adjunto retirado; el archivo original sigue en tu teléfono."
     }
 

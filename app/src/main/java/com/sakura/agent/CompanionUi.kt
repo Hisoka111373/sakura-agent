@@ -39,7 +39,8 @@ internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaki
         gesture.snapTo(0f)
         val fresh = sequence != playedSequence
         playedSequence = sequence
-        if(fresh && motion && resumed && event in listOf("Saludo", "Saltito", "Lista", "Buscando", "Leyendo")) {
+        if(fresh && motion && resumed && event in listOf("Saludo", "Saltito", "Lista", "Buscando", "Leyendo",
+            "Corazón", "Dormir", "Celebrar", "Girar")) {
             gesture.animateTo(1f,tween(1200,easing=LinearEasing))
             gesture.snapTo(0f)
         }
@@ -52,9 +53,9 @@ internal fun AnimatedMascot(size: Dp, motion: Boolean, thinking: Boolean, speaki
         Triple(bob,tilt,scale)
     } else Triple(0f,0f,1f)
     val wave = kotlin.math.sin(gesture.value * kotlin.math.PI.toFloat() * 6f)
-    val hop = if(event == "Saltito" || event == "Lista") -kotlin.math.abs(wave) * 12f else 0f
-    val greetingTilt = if(event == "Saludo") wave * 13f else wave * 3f
-    val squash = if(event == "Saltito" || event == "Lista") kotlin.math.abs(wave) * 0.06f else 0f
+    val hop = if(event == "Saltito" || event == "Lista" || event == "Celebrar") -kotlin.math.abs(wave) * 12f else 0f
+    val greetingTilt = if(event == "Saludo" || event == "Girar") wave * 13f else wave * 3f
+    val squash = if(event == "Saltito" || event == "Lista" || event == "Celebrar") kotlin.math.abs(wave) * 0.06f else 0f
     val density=LocalDensity.current.density
     Box(Modifier.size(size).graphicsLayer {
         translationY=(values.first+hop)*density
@@ -94,8 +95,14 @@ internal fun CompanionCard(vm: SakuraViewModel, speaking: Boolean, greet: () -> 
             Text(if(vm.generating) "${vm.generatedTokens} tokens · puedes detener" else "Tu compañera para aprender y crear",style=MaterialTheme.typography.bodySmall)
         }
         Column {
-            TextButton(enabled=!vm.busy,onClick=greet) { Text("Saludar") }
-            TextButton(enabled=!vm.busy,onClick=vm::playfulCompanion) { Text("Saltito") }
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                TextButton(enabled=!vm.busy,onClick=greet) { Text("Saludar") }
+                TextButton(enabled=!vm.busy,onClick=vm::playfulCompanion) { Text("Saltito") }
+                TextButton(enabled=!vm.busy,onClick={vm.companionGesture("Corazón")}) { Text("Corazón") }
+                TextButton(enabled=!vm.busy,onClick={vm.companionGesture("Dormir")}) { Text("Dormir") }
+                TextButton(enabled=!vm.busy,onClick={vm.companionGesture("Celebrar")}) { Text("Celebrar") }
+                TextButton(enabled=!vm.busy,onClick={vm.companionGesture("Girar")}) { Text("Girar") }
+            }
         }
     } }
 }

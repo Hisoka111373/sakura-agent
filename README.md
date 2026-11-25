@@ -267,12 +267,13 @@ desde el catálogo; revisa su licencia. La descarga requiere confirmación y el 
 4. Configura la ruta del SDK en Android Studio o `local.properties` y ejecuta:
 
    ```bash
-   gradle --no-daemon testDebugUnitTest
-   gradle --no-daemon assembleDebug
+   ./gradlew --no-daemon testDebugUnitTest
+   ./gradlew --no-daemon assembleDebug
    ```
 
-   No hay Gradle Wrapper en el repositorio original ni en esta entrega; necesitas Gradle
-   8.9 instalado o la configuración local equivalente de Android Studio.
+   El repositorio incluye Gradle Wrapper 8.9 (`gradlew`, `gradle/wrapper/`), así que no
+   necesitas instalar Gradle a mano. En Windows usa `gradlew.bat` o Git Bash. Sí necesitas
+   JDK 17, Android SDK 35, NDK 27.2.12479018 y CMake 3.31.6.
 
 5. Instala `app/build/outputs/apk/debug/app-debug.apk` en un teléfono ARM64 de prueba.
    Es una APK de depuración, no una versión firmada para tienda.

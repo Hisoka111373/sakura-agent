@@ -121,6 +121,12 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
         exportFile = null
         if (uri != null && selected != null) vm.features.export(selected,uri)
     }
+    var pdfPayload by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
+    val exportPdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        val data = pdfPayload
+        pdfPayload = null
+        if (uri != null && data != null) vm.exportPdf(uri, data.first, data.second)
+    }
 
     CompositionLocalProvider(LocalMascotMotion provides vm.mascotMotion, LocalMascotSpeaking provides voice.speaking,
         LocalCompanionEvent provides vm.companionEvent, LocalCompanionSequence provides vm.companionSequence) {
@@ -171,7 +177,12 @@ private fun SakuraScreen(vm: SakuraViewModel = viewModel()) {
                     })
                     "Crear" -> CreateMediaPage(vm,confirm)
                     "Mensajes" -> MessagesPage(vm,confirm)
-                    "Privacidad" -> PrivacyPage(vm,confirm) { voice.stop(); vm.setInternet(it) }
+                    "Privacidad" -> PrivacyPage(vm,confirm,{ voice.stop(); vm.setInternet(it) }) {
+                        confirm("Crear un PDF con el chat actual en la ubicación que elijas. El archivo queda fuera del almacenamiento privado de Sakura; otras apps con acceso a esa carpeta podrían leerlo.") {
+                            pdfPayload = "Chat Sakura" to vm.messages.map { "${if (it.fromSakura) "Sakura" else "Tú"}: ${it.text}" }
+                            exportPdf.launch("sakura-chat.pdf")
+                        }
+                    }
                 }
             }
         }
@@ -273,7 +284,14 @@ private fun ChatPage(vm: SakuraViewModel, speaking: Boolean, greet: () -> Unit, 
                 Switch(checked=vm.chatAutoTools,enabled=!vm.busy,onCheckedChange={vm.updateChatAutoTools(it)})
             }
             Text("Si está activo, frases como «busca…», «lee README.md de…» o «descarga Whisper» abren una revisión antes de cualquier red o escritura.",fontSize=12.sp)
-            TextButton(onClick={vm.playfulCompanion()}) { Text("¡Saltito!") }
+            Text("Piloto automático: ${if (vm.autopilot) "activo solo para lecturas locales" else "desactivado"}. Cambia esto en Privacidad.",fontSize=12.sp)
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                TextButton(onClick={vm.playfulCompanion()}) { Text("¡Saltito!") }
+                TextButton(onClick={vm.companionGesture("Corazón")}) { Text("Corazón") }
+                TextButton(onClick={vm.companionGesture("Dormir")}) { Text("Dormir") }
+                TextButton(onClick={vm.companionGesture("Celebrar")}) { Text("Celebrar") }
+                TextButton(onClick={vm.companionGesture("Girar")}) { Text("Girar") }
+            }
             Text(vm.companionPhrase)
             TextButton(onClick={vm.mascotPreferences(vm.kawaii,!vm.mascotMotion,vm.autoVoice)}) { Text(if(vm.mascotMotion) "Desactivar movimiento" else "Activar movimiento") }
             TextButton(onClick={if(vm.autoVoice) vm.updateAutoSpeak(false) else confirm("Voz española local automática, solo en primer plano; pueden oírla otras personas.") { vm.updateAutoSpeak(true) }}) { Text(if(vm.autoVoice) "Voz auto: sí" else "Voz auto: no") }
@@ -477,7 +495,7 @@ private fun GithubPage(vm: SakuraViewModel) {
 }
 
 @Composable
-private fun PrivacyPage(vm: SakuraViewModel, confirm: (String,()->Unit)->Unit, onInternet: (Boolean) -> Unit) {
+private fun PrivacyPage(vm: SakuraViewModel, confirm: (String,()->Unit)->Unit, onInternet: (Boolean) -> Unit, onExportPdf: () -> Unit) {
     var token by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Info("LOCAL: chat y planificación GGUF, recuerdos cifrados, lectura de código y análisis de APK. RED: GitHub, descargas, APIs de mensajes, fal.ai y voz si la requiere. Crear en nube envía únicamente el prompt que revisas, no el chat ni los recuerdos. Compartir con otras apps usa sus propios permisos y conexiones.")
@@ -486,6 +504,14 @@ private fun PrivacyPage(vm: SakuraViewModel, confirm: (String,()->Unit)->Unit, o
             Switch(checked = vm.internetAllowed, enabled = !vm.busy || vm.internetAllowed, onCheckedChange = onInternet)
         }
         Text("Desactivado al iniciar cada sesión. Este interruptor controla las operaciones de Sakura, no es un firewall para Android ni para las apps abiertas.", fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Piloto automático (solo lecturas locales)", Modifier.weight(1f))
+            Switch(checked = vm.autopilot, enabled = !vm.busy, onCheckedChange = { enabled ->
+                if (enabled) confirm("Activar piloto automático: Sakura ejecutará sin diálogo únicamente acciones de bajo riesgo ya conocidas (listar modelos, leer archivos/carpetas y leer GitHub). Nunca escribirá, enviará mensajes, instalará APK, abrirá enlaces ni usará servicios de pago sin tu confirmación expresa.") { vm.updateAutopilot(true) }
+                else vm.updateAutopilot(false)
+            })
+        }
+        Text("Acciones desconocidas o medianas siguen pidiendo revisión. Puedes desactivar el modo aquí en cualquier momento.", fontSize = 12.sp)
         Text("Voz, mascota y modelo", color = Pink, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Cargar modelo inicial al iniciar", Modifier.weight(1f))
@@ -513,7 +539,13 @@ private fun PrivacyPage(vm: SakuraViewModel, confirm: (String,()->Unit)->Unit, o
             if(enabled) confirm("Activar lectura automática de respuestas completas con una voz española LOCAL instalada. Puede oírla quien esté cerca. Solo mientras Sakura está en primer plano. No activa micrófono ni envía texto a una voz en nube; si no hay voz local, muestra aviso. Silencio y segundo plano detienen la voz.") { vm.mascotPreferences(vm.kawaii,vm.mascotMotion,true) }
             else vm.mascotPreferences(vm.kawaii,vm.mascotMotion,false)
         },enabled=!vm.busy) }
-        Text("Sakura tiene ojos que parpadean y miran, boca que se mueve al hablar y manos que saludan: animación vectorial offline, no Live2D ni sincronización fonética real. Puedes desactivarla para ahorrar recursos. Pensamiento Bajo/Alto se elige en Chat/APIs.",fontSize=12.sp)
+        Text("Sakura tiene ojos que parpadean y miran, boca que se mueve al hablar y manos que saludan; ahora también corazón, sueño, giro y celebración con pétalos. Es animación vectorial offline, no Live2D ni sincronización fonética real. Puedes desactivarla para ahorrar recursos.",fontSize=12.sp)
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            TextButton(enabled = !vm.busy, onClick = onExportPdf) { Text("Exportar chat a PDF") }
+            TextButton(enabled = !vm.busy && vm.attachedImageUris.isNotEmpty() && "gemini_key" in vm.features.configured,
+                onClick = { vm.describeAttachedImage("Describe la imagen y transcribe el texto visible, si lo hay.") }) { Text("Entender imagen (Gemini)") }
+        }
+        Text("El PDF se escribe solo en la ubicación que eliges. La visión usa tu clave Gemini y pide confirmación antes de enviar cualquier imagen.", fontSize = 12.sp)
         Text("Credencial de GitHub", color = Pink, fontWeight = FontWeight.Bold)
         Text("${if (vm.hasToken) "Hay un token guardado y cifrado." else "No hay token guardado."} Usa un fine-grained token limitado al repositorio: Contents: read para leer o write para commits. No pegues tokens en el chat.", fontSize = 12.sp)
         OutlinedTextField(value = token, onValueChange = { token = it.take(512) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth(),
