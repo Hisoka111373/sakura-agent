@@ -1,0 +1,2 @@
+ad75838d56a25adc1ae4773c9cd3118bd153c18baa79b9e103796e5bb2746579  apk/SakuraAgent-0.12.0-arm64-debug.apk
+68799a5413113fdda956ed7c365b3c85e47d0831240c91741b1ea0367ae6b9d7  apk/SakuraAgent-0.13.0-arm64-debug.apk
