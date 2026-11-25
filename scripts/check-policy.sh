@@ -11,6 +11,7 @@ OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 "$KOTLINC" "$ROOT/app/src/main/java/com/sakura/agent/AgentPolicy.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/NetworkPolicy.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/AutopilotPolicy.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/ModelCatalog.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/AgentPlanner.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/Skills.kt" \
