@@ -100,9 +100,19 @@ class SakuraViewModel(application: Application) : AndroidViewModel(application) 
             val answer = withContext(Dispatchers.IO) {
                 val parsed = Uri.parse(uri)
                 val mime = app.contentResolver.getType(parsed) ?: "image/jpeg"
-                val bytes = app.contentResolver.openInputStream(parsed)?.use { it.readBytes(8 * 1024 * 1024 + 1) }
-                    ?: error("No se pudo leer la imagen adjunta.")
-                check(bytes.size <= 8 * 1024 * 1024) { "Imagen demasiado grande (máx. 8 MiB) para visión en línea." }
+                val bytes = app.contentResolver.openInputStream(parsed)?.use { input ->
+                    val out = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        check(total <= VisionPrompt.MAX_IMAGE_BYTES) { "Imagen demasiado grande (máx. 8 MiB) para visión en línea." }
+                        out.write(buffer, 0, count)
+                    }
+                    out.toByteArray()
+                } ?: error("No se pudo leer la imagen adjunta.")
                 VisionClient().describe(key, bytes, mime, q)
             }
             appendAssistant("Visión (Gemini): $answer")
