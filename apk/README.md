@@ -1,3 +1,18 @@
+# Sakura 0.13.0 — APK publicada por CI
+
+Archivo: `SakuraAgent-0.13.0-arm64-debug.apk`. La copia estable `sakura.apk` sigue siendo
+la 0.12.0; no se ha sobrescrito ningún archivo anterior.
+
+- Tamaño: 82531506 bytes
+- SHA-256: `68799a5413113fdda956ed7c365b3c85e47d0831240c91741b1ea0367ae6b9d7`
+- Datos completos: `BUILD-0.13.0.md` y `SHA256SUMS.txt`.
+
+Incluye mascotas con más gestos, piloto automático supervisado, exportación de chat a PDF,
+visión opcional con Gemini, Gradle Wrapper 8.9 y CI que publica Releases. Las versiones
+nuevas también se publican como GitHub Release; esta carpeta conserva el historial.
+
+---
+
 # Sakura 0.12.0 — APK publicada por CI
 
 Archivo: `SakuraAgent-0.12.0-arm64-debug.apk`; copia estable: `sakura.apk`.
