@@ -74,39 +74,32 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # Only on a push to main: commit the verified APK into apk/ using the
-      # workflow token. The apk/** path ignore and [skip ci] prevent a loop.
-      - name: Publish APK into apk/
+      # Publish the verified APK as a GitHub Release instead of committing it to main.
+      # The build job keeps contents: write only for this release step.
+      - name: Prepare release notes
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: release_info
         run: |
           set -euo pipefail
           VERSION="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
           test -n "$VERSION" && test "$VERSION" != "0.0"
-          TARGET="apk/SakuraAgent-${VERSION}-arm64-debug.apk"
-          mkdir -p apk
-          cp app/build/outputs/apk/debug/app-debug.apk "$TARGET"
-          HASH="$(sha256sum "$TARGET" | cut -d' ' -f1)"
-          SIZE="$(stat -c%s "$TARGET")"
-          printf '%s  %s\n' "$HASH" "$TARGET" > apk/SHA256SUMS.txt
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           {
-            echo "# Sakura ${VERSION} — APK publicada por CI"
+            echo "## Sakura $VERSION"
             echo
-            echo "Archivo: \`$TARGET\`"
-            echo
-            echo "- Commit de origen: \`${GITHUB_SHA}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- CI: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-            echo "- Tamaño: ${SIZE} bytes"
-            echo "- SHA-256: \`$HASH\`"
+            echo "- Tamaño: $(stat -c%s app/build/outputs/apk/debug/app-debug.apk) bytes"
+            echo "- SHA-256: \`$(sha256sum app/build/outputs/apk/debug/app-debug.apk | cut -d' ' -f1)\`"
             echo
-            echo "Compilada en GitHub Actions con pruebas JVM y verificación nativa en verde."
-            echo "Es una APK debug para ARM64/Android 13+. No hay prueba física ni garantía de rendimiento."
-          } > "apk/BUILD-${VERSION}.md"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$TARGET" apk/SHA256SUMS.txt "apk/BUILD-${VERSION}.md"
-          if git diff --cached --quiet; then
-            echo "La APK ya estaba publicada; nada que confirmar."
-          else
-            git commit -m "chore: publish Sakura ${VERSION} APK [skip ci]"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
+            echo "APK debug ARM64/Android 13+. Sin prueba física; conserva tus datos antes de actualizar."
+          } > release-notes.md
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.release_info.outputs.version }}
+          name: Sakura ${{ steps.release_info.outputs.version }}
+          body_path: release-notes.md
+          files: app/build/outputs/apk/debug/app-debug.apk

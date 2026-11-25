@@ -332,7 +332,7 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 106 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente y pensamiento: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- Pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente, pensamiento, movimiento y piloto automático: el número exacto se informa en cada ejecución de GitHub Actions (no se fija aquí una cifra que cambia con cada versión).
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:

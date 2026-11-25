@@ -14,7 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -90,14 +92,15 @@ private fun DrawScope.drawSakura(s: Float, phase: Float, thinking: Boolean, spea
 
     // Eyes: two whites, moving pupils, optional blink and a small highlight.
     val blink = MascotExpressions.blinkWithDouble(phase)
-    val eyeScale = if (blink) 0.10f else 1f
+    val asleep = event == "Dormir" && MascotExpressions.sleepingEyes(phase)
+    val eyeScale = if (blink || asleep) 0.10f else 1f
     val gx = MascotExpressions.gazeX(phase) * r * 0.11f
     val gy = MascotExpressions.gazeY(phase) * r * 0.08f
     for (ex in listOf(cx - r * 0.30f, cx + r * 0.30f)) {
         val eyeCenter = Offset(ex, cy + r * 0.02f)
         drawOval(Color.White, topLeft = Offset(eyeCenter.x - r * 0.16f, eyeCenter.y - r * 0.17f * eyeScale),
             size = Size(r * 0.32f, r * 0.34f * eyeScale))
-        if (!blink) {
+        if (!blink && !asleep) {
             val pupil = Offset(ex + gx, eyeCenter.y + r * 0.04f + gy)
             drawCircle(Eye, radius = r * 0.125f, center = pupil)
             drawCircle(Color.White, radius = r * 0.038f, center = Offset(pupil.x - r * 0.04f, pupil.y - r * 0.05f))
@@ -146,6 +149,45 @@ private fun DrawScope.drawSakura(s: Float, phase: Float, thinking: Boolean, spea
     }
 
     drawBlossom(cx + r * 0.82f, cy - r * 0.78f, s * 0.055f)
+
+    // Extra offline gestures. All are finite, deterministic and pause with `motion`.
+    when (event) {
+        "Corazón" -> {
+            val pulse = 0.9f + 0.2f * MascotExpressions.heartBeat(phase)
+            val hx = cx + r * 0.95f
+            val hy = cy - r * 0.95f
+            val hs = s * 0.035f * pulse
+            val heart = Path().apply {
+                moveTo(hx, hy + hs)
+                cubicTo(hx - hs * 1.6f, hy - hs * 0.8f, hx - hs * 0.6f, hy - hs * 1.6f, hx, hy - hs * 0.6f)
+                cubicTo(hx + hs * 0.6f, hy - hs * 1.6f, hx + hs * 1.6f, hy - hs * 0.8f, hx, hy + hs)
+                close()
+            }
+            drawPath(heart, Glow, alpha = 0.92f)
+        }
+        "Dormir" -> {
+            repeat(3) { i ->
+                val zy = cy - r * (0.88f + i * 0.12f)
+                val zx = cx + r * (0.82f + i * 0.08f)
+                drawLine(Petal, Offset(zx, zy), Offset(zx + s * 0.05f, zy), strokeWidth = s * 0.012f, alpha = 0.9f)
+                drawLine(Petal, Offset(zx + s * 0.05f, zy), Offset(zx, zy - s * 0.035f), strokeWidth = s * 0.012f, alpha = 0.9f)
+                drawLine(Petal, Offset(zx, zy - s * 0.035f), Offset(zx + s * 0.05f, zy - s * 0.035f), strokeWidth = s * 0.012f, alpha = 0.9f)
+            }
+        }
+        "Girar" -> {
+            rotate(MascotExpressions.spin(phase) * 14f, pivot = Offset(cx, cy)) {
+                drawBlossom(cx + r * 0.95f, cy - r * 0.85f, s * 0.05f)
+            }
+        }
+        "Celebrar" -> {
+            repeat(6) { i ->
+                val a = MascotExpressions.pollenAngle(i, phase)
+                val radius = r * (1.18f + 0.05f * i)
+                drawCircle(Petal, radius = s * 0.016f, alpha = 0.85f,
+                    center = Offset(cx + cos(a) * radius, cy + sin(a) * radius * 0.9f))
+            }
+        }
+    }
 }
 
 private fun DrawScope.drawBlossom(cx: Float, cy: Float, radius: Float) {

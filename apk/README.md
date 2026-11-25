@@ -8,17 +8,12 @@ Archivo: `SakuraAgent-0.12.0-arm64-debug.apk`; copia estable: `sakura.apk`.
 
 ---
 
-# Sakura 0.11.0 — pendiente de publicación por CI
+# Sakura 0.11.0 — publicada por CI
 
-La versión `0.11.0` (`versionCode 13`) está preparada en el código. Tras la CI en
-`main`, GitHub Actions debe publicar aquí:
-
-- `SakuraAgent-0.11.0-arm64-debug.apk`
-- `SHA256SUMS.txt`
-- `BUILD-0.11.0.md` con commit, ejecución, tamaño y SHA-256 reales
-
-No hay hash hasta que CI termine: no copies ni inventes datos de una APK que no se ha
-compilado. La versión se lee de `versionName` en `app/build.gradle.kts`.
+Archivo: `SakuraAgent-0.11.0-arm64-debug.apk`. Datos completos en
+`BUILD-0.11.0.md` (commit, ejecución, tamaño y SHA-256 reales). La versión se lee de
+`versionName` en `app/build.gradle.kts`. Las versiones nuevas se publican también
+como **GitHub Release**; esta carpeta conserva el historial por compatibilidad.
 
 ---
 
