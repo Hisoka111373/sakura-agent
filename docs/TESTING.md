@@ -13,7 +13,7 @@ y [FEATURES-0.5.md](FEATURES-0.5.md), además de los documentos 0.3/0.4.
 
 Comprobaciones realizadas:
 
-1. `scripts/check-policy.sh`:106 pruebas JUnit (reglas, red, catálogo, planes, skills, routing, protocolos, pantalla, agente y pensamiento), todas aprobadas.
+1. `scripts/check-policy.sh`: pruebas JUnit (reglas, red, catálogo, planes, skills, routing, protocolos, pantalla, agente, pensamiento, movimiento y piloto automático). La lista de clases se mantiene en el propio script; el número exacto lo muestra JUnit/Actions.
 2. Kotlin 2.0.21 + plugin Compose 2.0.21: todos los archivos `.kt` de producción
    compilados a un JAR de comprobación, con android.jar API 35 y dependencias AndroidX.
    El JAR no se entrega como aplicación y no puede instalarse en Android.

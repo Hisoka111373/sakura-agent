@@ -1,6 +1,7 @@
 package com.sakura.agent
 
 import android.util.Base64
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
@@ -72,7 +73,14 @@ class GitHubClient {
             "Issues" -> "/issues?state=open&per_page=30"
             else -> error("Consulta no admitida.")
         }
-        val items = request("GET",base(owner,repo)+suffix,token).getJSONArray("items")
+        val raw = request("GET",base(owner,repo)+suffix,token).getJSONArray("items")
+        // GitHub's /issues endpoint also returns pull requests; show only real issues.
+        val items = if (kind == "Issues") JSONArray().also { out ->
+            (0 until raw.length()).forEach { i ->
+                val row = raw.getJSONObject(i)
+                if (row.optJSONObject("pull_request") == null) out.put(row)
+            }
+        } else raw
         return "$kind de $owner/$repo (primera página, no listado completo):\n" + (0 until items.length()).joinToString("\n") {
             val item = items.getJSONObject(it)
             when (kind) {

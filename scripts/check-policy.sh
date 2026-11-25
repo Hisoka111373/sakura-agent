@@ -11,6 +11,9 @@ OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 "$KOTLINC" "$ROOT/app/src/main/java/com/sakura/agent/AgentPolicy.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/NetworkPolicy.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/AutopilotPolicy.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/VisionPrompt.kt" \
+    "$ROOT/app/src/main/java/com/sakura/agent/MediaModels.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/ModelCatalog.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/AgentPlanner.kt" \
     "$ROOT/app/src/main/java/com/sakura/agent/Skills.kt" \
@@ -28,4 +31,4 @@ trap 'rm -rf "$OUT"' EXIT
     "$ROOT/app/src/test/java/com/sakura/agent/"*Test.kt \
     -cp "$JUNIT_JAR:$JSON_JAR" -include-runtime -d "$OUT/tests.jar"
 java -cp "$OUT/tests.jar:$JUNIT_JAR:$HAMCREST_JAR:$JSON_JAR" org.junit.runner.JUnitCore \
-    com.sakura.agent.AgentPolicyTest com.sakura.agent.NetworkPolicyTest com.sakura.agent.AgentPlannerTest com.sakura.agent.SkillsTest com.sakura.agent.SkillLibraryTest com.sakura.agent.AgentIntegrationTest com.sakura.agent.ThinkingPolicyTest com.sakura.agent.ChatSearchTest com.sakura.agent.CompanionPolicyTest com.sakura.agent.LocalChatPolicyTest com.sakura.agent.ModelCatalogExtrasTest com.sakura.agent.SupervisedFeaturesTest com.sakura.agent.Sakura010Test
+    com.sakura.agent.AgentPolicyTest com.sakura.agent.NetworkPolicyTest com.sakura.agent.AgentPlannerTest com.sakura.agent.SkillsTest com.sakura.agent.SkillLibraryTest com.sakura.agent.AgentIntegrationTest com.sakura.agent.ThinkingPolicyTest com.sakura.agent.ChatSearchTest com.sakura.agent.CompanionPolicyTest com.sakura.agent.LocalChatPolicyTest com.sakura.agent.ModelCatalogExtrasTest com.sakura.agent.SupervisedFeaturesTest com.sakura.agent.Sakura010Test com.sakura.agent.Sakura012Test com.sakura.agent.SakuraMotionTest com.sakura.agent.AutopilotPolicyTest com.sakura.agent.VisionClientTest com.sakura.agent.MediaModelsTest

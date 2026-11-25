@@ -10,6 +10,21 @@ por PR #7. La0.6 pasó CI43749469074 y se integró por PR #8. Para0.7 consulta s
 PR/CI; las pruebas en dispositivo siguen pendientes.
 El chat no utiliza respuestas predefinidas: requiere GGUF real o API configurada.
 
+## Ampliación 0.13 — mascota ampliada, PDF, visión y piloto automático
+
+- **Más movimientos**: corazón, sueño, celebración con pétalos y giro, además de parpadeo,
+  mirada y saludo. Animación vectorial offline, desactivable.
+- **Piloto automático supervisado**: solo lecturas locales conocidas se ejecutan sin
+  diálogo; red, escrituras, mensajes, instalaciones y costes siguen pidiendo confirmación.
+- **PDF**: exporta el chat a un destino elegido con Android SAF, sin sobrescribir nada.
+- **Visión opcional**: describe una imagen adjunta con Gemini usando tu clave cifrada;
+  la imagen se envía solo tras confirmación y su texto se trata como datos no confiables.
+- **Imagen/vídeo**: generación en fal.ai con tu clave (FLUX schnell, LTX 0.9.1) y
+  catálogo honesto de modelos; no se publican hashes inventados de modelos locales.
+- **Infraestructura**: Gradle Wrapper 8.9, CI que publica Releases en vez de hacer push
+  a `main`, tests ampliados y filtro de PRs en «Issues».
+- Detalles y límites: [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
+
 ## Ampliación 0.12 — chat primero, búsqueda real y programación supervisada
 
 - **Búsqueda desde el chat**: sin clave usa Wikipedia en español y DuckDuckGo Lite como
@@ -267,12 +282,13 @@ desde el catálogo; revisa su licencia. La descarga requiere confirmación y el 
 4. Configura la ruta del SDK en Android Studio o `local.properties` y ejecuta:
 
    ```bash
-   gradle --no-daemon testDebugUnitTest
-   gradle --no-daemon assembleDebug
+   ./gradlew --no-daemon testDebugUnitTest
+   ./gradlew --no-daemon assembleDebug
    ```
 
-   No hay Gradle Wrapper en el repositorio original ni en esta entrega; necesitas Gradle
-   8.9 instalado o la configuración local equivalente de Android Studio.
+   El repositorio incluye Gradle Wrapper 8.9 (`gradlew`, `gradle/wrapper/`), así que no
+   necesitas instalar Gradle a mano. En Windows usa `gradlew.bat` o Git Bash. Sí necesitas
+   JDK 17, Android SDK 35, NDK 27.2.12479018 y CMake 3.31.6.
 
 5. Instala `app/build/outputs/apk/debug/app-debug.apk` en un teléfono ARM64 de prueba.
    Es una APK de depuración, no una versión firmada para tienda.
@@ -332,7 +348,7 @@ importados están privados pero no cifrados; los originales del selector no se m
 
 ## Verificación de esta entrega
 
-- 106 pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente y pensamiento: aprobadas con Kotlin 2.0.21 y JUnit 4.13.2.
+- Pruebas JVM de reglas/URLs/catálogo/planes/skills/routing/protocolos/pantalla, agente, pensamiento, movimiento y piloto automático: el número exacto se informa en cada ejecución de GitHub Actions (no se fija aquí una cifra que cambia con cada versión).
 - Todos los archivos Kotlin: compilación estática con API 35, dependencias AndroidX y
   plugin Compose 2.0.21 aprobada. No es un build Android de Gradle.
 - C++: `g++ -fsyntax-only -Wall -Wextra -Werror` contra cabeceras del commit fijado y JNI:

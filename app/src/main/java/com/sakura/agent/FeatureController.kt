@@ -54,11 +54,18 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
         pending = action.copy(onResult = callback, owner = owner)
         return true
     }
-    internal fun prepare(preview: String, network: Boolean = true, perform: suspend () -> String): Boolean {
+    /** Set by the agent before preparing a tool call; consumed by the next prepare(). */
+    var nextAction: String? = null
+
+    internal fun prepare(preview: String, network: Boolean = true, action: String? = null, perform: suspend () -> String): Boolean {
         if (vm.busy) return false
         if (network && !vm.internetAllowed) { vm.notice("Autoriza Internet en Privacidad antes de preparar esta acción."); return false }
         dismiss()
+        val name = action ?: nextAction.orEmpty()
+        nextAction = null
         pending = FeatureConfirmation(preview,network,perform)
+        // Only explicitly enabled, known read/local actions bypass the dialog.
+        if (AutopilotPolicy.autoApprove(vm.autopilot, name)) confirm()
         return true
     }
     private fun validate(block: () -> Unit): Boolean =

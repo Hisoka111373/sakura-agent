@@ -20,8 +20,21 @@ object MascotExpressions {
         "Error" -> "preocupada"
         "Buscando" -> "buscando"
         "Leyendo" -> "leyendo"
+        "Corazón" -> "enamorada"
+        "Dormir" -> "dormida"
+        "Celebrar" -> "celebrando"
+        "Girar" -> "girando"
         else -> "contigo"
     }
+
+    /** Pulsating heart used by the "Corazón" gesture; deterministic and bounded. */
+    fun heartBeat(phase: Float): Float = abs(sin(phase * TAU * 2f))
+
+    /** Eyes stay closed during the middle of the sleep cycle. */
+    fun sleepingEyes(phase: Float): Boolean = phase in 0.35f..0.65f
+
+    /** Gentle turn used by the "Girar" gesture. */
+    fun spin(phase: Float): Float = sin(phase * TAU)
 
     fun blink(phase: Float): Boolean = phase in 0.765f..0.795f
 
@@ -52,5 +65,6 @@ object MascotExpressions {
         if (thinking) sin(phase * TAU * 2f).toFloat() * 0.35f
         else sin(phase * TAU * 3f).toFloat()
 
-    fun happy(event: String): Boolean = event == "Saludo" || event == "Saltito" || event == "Lista"
+    fun happy(event: String): Boolean = event == "Saludo" || event == "Saltito" ||
+        event == "Lista" || event == "Celebrar" || event == "Corazón"
 }

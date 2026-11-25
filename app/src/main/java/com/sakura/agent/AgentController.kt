@@ -89,6 +89,7 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
         if(vm.busy || awaiting || !active || proposal.isEmpty()) return
         try {
             val call = ToolCallParser.parse(proposal) as? ParsedAction.Call ?: error("No es una herramienta.")
+            vm.features.nextAction = call.name // consumed by prepare(); the risk gate decides if a dialog is needed
             val id = revision
             fun arg(key: String) = call.args.getValue(key)
             // Remove unrelated previews so a failed validator cannot attach to an old action.
@@ -239,6 +240,7 @@ class AgentController(private val vm: SakuraViewModel, private val context: Cont
                     }
                 }
             }
+            vm.features.nextAction = null
             val attached = vm.features.observePending("agent") { result ->
                 if(id == revision) {
                     val observation = result.getOrElse { "Resultado NO confirmado: ${it.message}. Revisa el servicio antes de repetir." }

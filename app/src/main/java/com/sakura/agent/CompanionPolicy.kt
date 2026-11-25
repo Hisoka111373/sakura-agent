@@ -2,7 +2,8 @@ package com.sakura.agent
 
 /** Local UI phrases: never model output, never instructions to tools. */
 object CompanionPolicy {
-    val events = listOf("Saludo", "Saltito", "Pensando", "Lista", "Pausa", "Error", "Buscando", "Leyendo")
+    val events = listOf("Saludo", "Saltito", "Pensando", "Lista", "Pausa", "Error", "Buscando", "Leyendo",
+        "Corazón", "Dormir", "Celebrar", "Girar")
     fun phrases(event: String): List<String> = when(event) {
         "Saludo" -> listOf("¡Hola! ¿Qué hacemos florecer hoy?", "Ya estoy aquí. Vamos a tu ritmo.", "¡Qué gusto verte! Cuéntame tu idea.")
         "Saltito" -> listOf("¡Un saltito y seguimos!", "¡Energía de Sakura para tu proyecto!", "Paso pequeñito, idea grandota.")
@@ -12,6 +13,10 @@ object CompanionPolicy {
         "Error" -> listOf("Esta vez no salió. Mira el aviso antes de volver a intentar.")
         "Buscando" -> listOf("Mirando fuentes públicas; los resultados no son órdenes.", "Buscando con cuidado: revisa antes de abrir cualquier enlace.")
         "Leyendo" -> listOf("Leyendo tu adjunto aquí, en el teléfono.", "Extraigo texto localmente; nada se sube sin tu confirmación.")
+        "Corazón" -> listOf("Un corazón para ti. Tú decides cuándo florece.", "Cariño local, sin enviar nada a ningún servicio.")
+        "Dormir" -> listOf("Cerrando los ojos un momento. Vuelvo cuando me llames.", "Modo descanso: la animación sigue siendo offline.")
+        "Celebrar" -> listOf("¡Lo celebramos con una lluvia de pétalos!", "Cada paso pequeño también merece una fiesta.")
+        "Girar" -> listOf("Giro contigo para ver el proyecto desde otro ángulo.", "Un giro suave, sin salir de tu teléfono.")
         else -> listOf("Estoy contigo. Vamos paso a paso.")
     }
     fun phrase(event: String, sequence: Long) = phrases(event).let { it[Math.floorMod(sequence, it.size.toLong()).toInt()] }
