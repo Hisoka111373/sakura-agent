@@ -4,7 +4,10 @@ Archivo: `SakuraAgent-0.13.0-arm64-debug.apk`.
 
 - Commit de origen: `e555e36f4533c64565c79b178712666af6ba62b2`
 - Rama: `feature/revision-2026-11-25`
-- CI: https://github.com/Hisoka111373/sakura-agent/actions/runs/45523589645
+- CI de origen: https://github.com/Hisoka111373/sakura-agent/actions/runs/45523589645
+- Fusión en `main`: commit `13a3d63`; CI de `main` en verde:
+  https://github.com/Hisoka111373/sakura-agent/actions/runs/45527527602
+- Release: https://github.com/Hisoka111373/sakura-agent/releases/tag/v0.13.0
 - Tamaño: 82531506 bytes
 - SHA-256: `68799a5413113fdda956ed7c365b3c85e47d0831240c91741b1ea0367ae6b9d7`
 
