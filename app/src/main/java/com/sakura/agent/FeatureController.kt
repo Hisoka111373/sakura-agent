@@ -57,7 +57,7 @@ class FeatureController(private val vm: SakuraViewModel, private val context: Co
     /** Set by the agent before preparing a tool call; consumed by the next prepare(). */
     var nextAction: String? = null
 
-    internal fun prepare(preview: String, network: Boolean = true, perform: suspend () -> String, action: String? = null): Boolean {
+    internal fun prepare(preview: String, network: Boolean = true, action: String? = null, perform: suspend () -> String): Boolean {
         if (vm.busy) return false
         if (network && !vm.internetAllowed) { vm.notice("Autoriza Internet en Privacidad antes de preparar esta acción."); return false }
         dismiss()
